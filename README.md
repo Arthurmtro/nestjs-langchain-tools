@@ -1,25 +1,33 @@
 # NestJS LangChain Tools
 
-A NestJS module for easy integration with LangChain tools and agents using decorators. This package provides a multi-agent architecture with automatic discovery and coordination. Works with OpenAI, Anthropic, Mistral, and other LLM providers.
+[![NPM Version](https://img.shields.io/npm/v/nestjs-langchain-tools.svg)](https://www.npmjs.com/package/nestjs-langchain-tools)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Installation
+A powerful NestJS module for seamless integration with LangChain tools and agents. Build sophisticated AI features in your NestJS applications with a simple decorator-based API.
+
+## 🚀 Features
+
+- **Decorator-based Tools** - Create LangChain tools with a simple decorator API
+- **Multi-Agent Architecture** - Build specialized agents for different tasks
+- **Smart Routing** - Automatically routes requests to the right agent
+- **Provider Agnostic** - Works with OpenAI, Anthropic, Mistral, and more
+- **Memory Support** - Optional conversation memory for stateful interactions
+- **Type-Safe** - Uses TypeScript and Zod schemas for robust type safety
+
+## 📦 Installation
 
 ```bash
+# Using npm
 npm install nestjs-langchain-tools
+
+# Using yarn
+yarn add nestjs-langchain-tools
+
+# Using pnpm
+pnpm add nestjs-langchain-tools
 ```
 
-## Features
-
-- 🛠️ **Decorator-based Tools**: Easily create tools with a simple decorator API
-- 🤖 **Multi-Agent Architecture**: Build specialized agents for different tasks
-- 🧠 **Agent Coordination**: Route requests to the most appropriate agent
-- 🔌 **Provider Agnostic**: Works with OpenAI, Anthropic, Mistral, and Llama
-- 🧩 **Memory Support**: Optional conversation memory for stateful interactions
-- 📝 **Custom Prompts**: Set different system prompts for each agent
-- 🔒 **Type-Safe**: Uses TypeScript and Zod schemas
-- 🏗️ **NestJS Integration**: Seamlessly integrates with NestJS dependency injection
-
-## Usage
+## 🔧 Quick Start
 
 ### 1. Import the module in your app.module.ts
 
@@ -31,20 +39,12 @@ import { LangChainToolsModule } from 'nestjs-langchain-tools';
   imports: [
     LangChainToolsModule.forRoot({
       coordinatorPrompt: `
-        You are the Hotel California's AI concierge.
-        You coordinate different specialized agents to help guests with their requests.
-
-        Available agents:
-        - Client Management Agent: For handling guest profiles and information
-        - Reservation Agent: For managing room bookings and reservations
-
-        Analyze each request carefully and route it to the most appropriate agent.
-        Always be polite, professional, and helpful.
-
+        You are a hotel concierge AI.
+        You coordinate different specialized agents to help guests.
+        
         {input}
       `,
     }),
-    // Other modules...
   ],
 })
 export class AppModule {}
@@ -59,34 +59,24 @@ import { AgentTool, ToolsAgent } from 'nestjs-langchain-tools';
 
 @Injectable()
 @ToolsAgent({
-  name: 'Client Management Agent',
-  description: 'Handles all client-related operations',
-  systemPrompt: `
-    You are a client management specialist.
-    You can help with creating, retrieving, updating, and listing client information.
-    Always be professional and courteous when handling client information.
-
-    {input}
-  `,
+  name: 'Booking Agent',
+  description: 'Handles all hotel reservation operations',
+  systemPrompt: `You are a booking specialist. Help with room reservations. {input}`,
 })
-export class ClientAgentService {
-  constructor(private readonly clientService: ClientService) {}
-
+export class BookingAgentService {
   @AgentTool({
-    name: 'create_client',
-    description: 'Create a new client',
+    name: 'check_availability',
+    description: 'Check room availability',
     schema: z.object({
-      name: z.string().min(1),
-      email: z.string().email(),
-      phone: z.string().optional(),
+      checkIn: z.string(),
+      checkOut: z.string(),
+      roomType: z.string(),
     }),
   })
-  async createClient(input: any) {
-    const result = await this.clientService.create(input);
-    return `Client created successfully: ${result.name} (ID: ${result.id})`;
+  async checkAvailability(input: any) {
+    // Your implementation here
+    return `Room availability for ${input.roomType} from ${input.checkIn} to ${input.checkOut}...`;
   }
-
-  // More tools...
 }
 ```
 
@@ -109,109 +99,116 @@ export class AIController {
 }
 ```
 
-## API Reference
+## 📘 Key Concepts
 
-### Decorators
+### Agents
 
-#### @ToolsAgent(options)
+Agents are specialized AI assistants that can use tools. Each agent handles specific domains or tasks:
 
-Marks a class as an agent with its own tools.
-
-Options:
-
-- `name`: The name of the agent
-- `description`: Description of what the agent does
-- `systemPrompt`: The system prompt for the agent
-- `modelType`: The LLM provider to use ('openai', 'anthropic', 'mistral', 'llama', 'custom')
-- `modelName`: The model name to use (depends on the provider)
-- `temperature`: Temperature setting (default: 0)
-- `useMemory`: Enable conversation memory (default: false)
-- `returnIntermediateSteps`: Whether to return reasoning steps (default: false)
-- `handleParsingErrorMessage`: Custom error message for parsing errors
-
-#### @AgentTool(options)
-
-Marks a method as a tool that the agent can use.
-
-Options:
-
-- `name`: The name of the tool
-- `description`: Description of what the tool does
-- `schema`: Zod schema for the tool's input
-
-### Services
-
-#### CoordinatorService
-
-- `processMessage(message: string): Promise<string>`: Process a user message and route it to the appropriate agent
-
-#### AgentDiscoveryService
-
-- `discoverAndInitializeAgents()`: Discover and initialize all agents
-- `getAgentByName(name: string)`: Get an agent by name
-- `getAllAgents()`: Get all agents
-
-#### ToolDiscoveryService
-
-- `discoverTools()`: Discover all tools
-- `discoverToolsForProvider(instance: any)`: Discover tools for a specific provider
-
-## Testing the Multi-Agent System
-
-The package includes integration tests and example code to verify that the multi-agent system works correctly:
-
-### Integration Tests
-
-To run the integration tests (requires an API key):
-
-```bash
-# Set your API key first
-export OPENAI_API_KEY=your-api-key
-
-# Run the integration tests (edit file to remove .skip())
-npm test test/integration/multi-agent-flow.spec.ts
+```typescript
+@Injectable()
+@ToolsAgent({
+  name: 'Weather Agent',
+  description: 'Provides weather information',
+  modelType: 'openai', // 'anthropic', 'mistral', etc.
+  modelName: 'gpt-4o',
+  temperature: 0.2,
+  useMemory: true,
+})
+export class WeatherAgentService {
+  // Tools defined here
+}
 ```
 
-### Example Application
+### Tools
 
-There's a complete example application in the [/test/example-app](/test/example-app) directory that demonstrates:
+Tools are methods that agents can use to perform actions:
 
-- Weather Agent with weather forecast tools
-- Travel Agent with attractions, hotels, and flights tools
-- A coordinator that routes questions to the appropriate agent
+```typescript
+@AgentTool({
+  name: 'get_forecast',
+  description: 'Get weather forecast for a location',
+  schema: z.object({
+    location: z.string(),
+    days: z.number().optional(),
+  }),
+})
+async getForecast(input: any) {
+  // Implementation
+  return `Weather forecast for ${input.location}...`;
+}
+```
 
-To run the example:
+### Coordinator
+
+The coordinator routes user requests to the appropriate agent:
+
+```typescript
+// In your controller
+const response = await this.coordinatorService.processMessage(
+  "What's the weather in Paris tomorrow?"
+);
+```
+
+## 📖 API Reference
+
+### Module Configuration
+
+```typescript
+LangChainToolsModule.forRoot({
+  coordinatorPrompt: string,   // System prompt for the coordinator
+  coordinatorModel?: string,   // Model for coordinator (default: gpt-3.5-turbo)
+  coordinatorProvider?: string // LLM provider (default: 'openai')
+  // Additional options...
+})
+```
+
+### Agent Decorator
+
+```typescript
+@ToolsAgent({
+  name: string,               // Agent name
+  description: string,        // Agent description
+  systemPrompt: string,       // System prompt for the agent
+  modelType?: string,         // Provider: 'openai', 'anthropic', 'mistral', 'llama', 'custom'
+  modelName?: string,         // Model name
+  temperature?: number,       // Temperature (default: 0)
+  useMemory?: boolean,        // Enable conversation memory (default: false)
+  returnIntermediateSteps?: boolean, // Return reasoning steps (default: false)
+})
+```
+
+### Tool Decorator
+
+```typescript
+@AgentTool({
+  name: string,               // Tool name
+  description: string,        // Tool description
+  schema: ZodSchema,          // Zod schema for input validation
+})
+```
+
+## 🧪 Testing
 
 ```bash
 # Set your API key
 export OPENAI_API_KEY=your-api-key
 
-# Build the project
-npm run build
+# Run all tests
+npm test
 
-# Run the example app
-ts-node test/example-app/main.ts
-
-# Send test requests
-curl -X POST http://localhost:3000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message":"What is the weather like in Paris and what hotels do you recommend?"}'
+# Run example app
+npm run example
 ```
 
-## Troubleshooting
+## 🔍 Example Application
 
-### Common Issues
+Check out the complete example in the `/test/example-app` directory:
 
-1. **Agents not discovered**: Make sure you've applied both `@ToolsAgent()` and `@Injectable()` decorators to your agent classes.
+- Weather Agent with forecast tools
+- Travel Agent with hotel and attraction tools
+- Coordinator that routes questions to the right agent
 
-2. **Tools not discovered**: Ensure that methods are decorated with `@AgentTool()` and have proper schemas.
-
-3. **Initialization errors**: Check your API key is correctly set in your environment for the LLM provider you're using.
-
-4. **Coordinator not working**: Make sure to wait for the initialization process to complete before using the coordinator.
-
-5. **LLM provider issues**: If changing from OpenAI to another provider, ensure you have the correct dependencies installed and API keys set.
-
-## License
+## 📝 License
 
 MIT
