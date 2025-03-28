@@ -4,6 +4,11 @@
   "description": "NestJS integration for LangChain tools with multi-agent support",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "build": "rimraf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
@@ -18,13 +23,29 @@
     "example:build": "npm run build && npm run example",
     "prepublishOnly": "npm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arthurmonteiro/nestjs-langchain-tools.git"
+  },
+  "bugs": {
+    "url": "https://github.com/arthurmonteiro/nestjs-langchain-tools/issues"
+  },
+  "homepage": "https://github.com/arthurmonteiro/nestjs-langchain-tools#readme",
   "keywords": [
     "nestjs",
     "langchain",
     "ai",
     "agents",
     "llm",
-    "tools"
+    "tools",
+    "openai",
+    "anthropic",
+    "chatgpt",
+    "claude",
+    "gpt",
+    "mistral",
+    "api",
+    "multi-agent"
   ],
   "author": "Arthur Monteiro",
   "license": "MIT",

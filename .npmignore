@@ -1,31 +1,38 @@
-# Source
+# Source code
 src/
-test/
 
-# Configuration
-tsconfig.json
-jest.config.js
+# Tests
+test/
+coverage/
+*.spec.ts
+*.test.ts
+
+# Build tools
+tsconfig*.json
 .eslintrc.js
 .prettierrc
-.github
-.vscode
-.editorconfig
-.gitignore
-install-deps.sh
+jest.config.js
 
-# Documentation
-docs/
-coverage/
+# Git and GitHub
+.git/
+.github/
+.gitignore
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Script files
+scripts/
+*.sh
+
+# Environment files
+.env
+.env.*
 
 # Misc
 node_modules/
-npm-debug.log
-yarn-error.log
-yarn-debug.log
+*.log
 .DS_Store
-.idea
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
