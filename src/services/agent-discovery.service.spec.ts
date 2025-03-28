@@ -2,11 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AgentDiscoveryService } from './agent-discovery.service';
 import { DiscoveryService, Reflector } from '@nestjs/core';
 import { ToolDiscoveryService } from './tool-discovery.service';
-import { AGENT_METADATA, AgentOptions } from '../decorators/agent.decorator';
+import { AGENT_METADATA } from '../decorators/agent.decorator';
 import { Injectable } from '@nestjs/common';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { ChatOpenAI } from '@langchain/openai';
 import { AgentExecutor } from 'langchain/agents';
+import { AgentOptions, AgentType, ModelProvider } from '../interfaces/agent.interface';
 
 // Mock implementations
 class MockDiscoveryService {
@@ -80,8 +81,8 @@ describe('AgentDiscoveryService', () => {
         name: 'TestAgent',
         description: 'Test agent for unit tests',
         systemPrompt: 'You are a test agent',
-        modelType: 'openai',
-        agentType: 'openapi',
+        modelType: ModelProvider.OPENAI,
+        agentType: AgentType.OPENAPI,
       };
       jest.spyOn(reflector, 'get').mockReturnValue(agentMetadata);
 

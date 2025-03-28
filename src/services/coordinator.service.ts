@@ -2,35 +2,39 @@ import { Injectable, Logger, OnModuleInit, Inject, Optional } from '@nestjs/comm
 import { ChatOpenAI } from '@langchain/openai';
 import { AgentExecutor, createOpenAIFunctionsAgent } from 'langchain/agents';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
-import { AgentDiscoveryService, AgentInfo } from './agent-discovery.service';
+import { AgentDiscoveryService } from './agent-discovery.service';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
+import { BufferMemory } from 'langchain/memory';
+import { AgentInfo, ModelProvider } from '../interfaces/agent.interface';
+import { LangChainToolsModuleOptions } from '../interfaces/module.interface';
+import { LANGCHAIN_TOOLS_OPTIONS } from '../modules/langchain-tools.module';
+import {
+  AGENT_INITIALIZATION_DELAY,
+  AGENT_TOOL_NAME_PATTERN,
+  DEFAULT_COORDINATOR_MODEL,
+  DEFAULT_COORDINATOR_PROMPT
+} from '../constants/coordinator.constants';
 
-const DEFAULT_COORDINATOR_PROMPT = `
-You are a coordinator that routes tasks to specialized agents.
-Your job is to understand the user's request and delegate it to the most appropriate agent.
-
-Remember:
-1. You have access to several specialized agents, each with their own expertise.
-2. Always delegate the task to the most appropriate agent.
-3. If a task requires multiple agents, break it down into subtasks and delegate each subtask.
-4. If you're unsure which agent to use, analyze the user's request more carefully.
-
-{input}
-`;
-
+/**
+ * Service that orchestrates multiple agents and routes requests
+ */
 @Injectable()
 export class CoordinatorService implements OnModuleInit {
-  private coordinatorAgent: AgentExecutor;
+  private coordinatorAgent: AgentExecutor | null = null;
   private readonly logger = new Logger(CoordinatorService.name);
   private initialized = false;
 
   constructor(
     private readonly agentDiscoveryService: AgentDiscoveryService,
-    @Optional() @Inject('LANGCHAIN_TOOLS_OPTIONS') private options?: any,
+    @Optional() @Inject(LANGCHAIN_TOOLS_OPTIONS) 
+    private readonly options?: LangChainToolsModuleOptions,
   ) {}
 
-  async onModuleInit() {
+  /**
+   * Initializes the coordinator after module initialization
+   */
+  async onModuleInit(): Promise<void> {
     // Delay initialization slightly to ensure all agents are registered
     setTimeout(async () => {
       try {
@@ -43,11 +47,17 @@ export class CoordinatorService implements OnModuleInit {
         // Initialize the coordinator
         await this.initialize(systemPrompt);
       } catch (error) {
-        this.logger.error('Failed to initialize coordinator:', error.stack);
+        const err = error as Error;
+        this.logger.error('Failed to initialize coordinator:', err.stack);
       }
-    }, 1000);
+    }, AGENT_INITIALIZATION_DELAY);
   }
 
+  /**
+   * Initializes the coordinator agent with the given prompt
+   * 
+   * @param systemPrompt - System prompt for the coordinator
+   */
   async initialize(systemPrompt: string = DEFAULT_COORDINATOR_PROMPT): Promise<void> {
     try {
       this.logger.log('Initializing coordinator agent...');
@@ -61,26 +71,56 @@ export class CoordinatorService implements OnModuleInit {
       this.logger.log(`Creating coordinator with ${agents.length} agents`);
       const agentTools = this.createAgentTools(agents);
 
-      const model = new ChatOpenAI({
-        modelName: 'gpt-4-turbo',
-        temperature: 0,
-      });
+      // Get coordinator model configuration from options
+      const modelName = this.options?.coordinatorModel || DEFAULT_COORDINATOR_MODEL;
+      const modelProvider = this.options?.coordinatorProvider || ModelProvider.OPENAI;
+      const temperature = this.options?.coordinatorTemperature ?? 0;
+      
+      // Create the language model
+      let model;
+      if (modelProvider === ModelProvider.OPENAI) {
+        model = new ChatOpenAI({
+          modelName,
+          temperature,
+        });
+      } else {
+        this.logger.warn(`Unsupported coordinator model provider: ${modelProvider}, falling back to OpenAI`);
+        model = new ChatOpenAI({
+          modelName: DEFAULT_COORDINATOR_MODEL,
+          temperature: 0,
+        });
+      }
 
+      // Create the prompt template
       const prompt = ChatPromptTemplate.fromMessages([
         ["system", systemPrompt],
         ["human", "{input}"],
         new MessagesPlaceholder("agent_scratchpad"),
       ]);
 
+      // Create the agent
       const agent = await createOpenAIFunctionsAgent({
         llm: model,
         tools: agentTools,
         prompt,
       });
 
+      // Configure memory if requested
+      let memory: BufferMemory | undefined;
+      if (this.options?.coordinatorUseMemory) {
+        memory = new BufferMemory({
+          returnMessages: true,
+          memoryKey: "chat_history",
+          inputKey: "input",
+          outputKey: "output",
+        });
+      }
+
+      // Create the agent executor
       this.coordinatorAgent = AgentExecutor.fromAgentAndTools({
         agent,
         tools: agentTools,
+        memory,
         handleParsingErrors: true,
         returnIntermediateSteps: false,
       });
@@ -88,14 +128,23 @@ export class CoordinatorService implements OnModuleInit {
       this.initialized = true;
       this.logger.log('Coordinator agent initialized successfully');
     } catch (error) {
-      this.logger.error('Failed to initialize coordinator agent:', error.stack);
+      const err = error as Error;
+      this.logger.error('Failed to initialize coordinator agent:', err.stack);
       throw error;
     }
   }
 
+  /**
+   * Creates tools for the coordinator to delegate to agents
+   * 
+   * @param agents - Array of agent infos
+   * @returns Array of tools for delegation
+   */
   private createAgentTools(agents: AgentInfo[]): DynamicStructuredTool[] {
     return agents.map(agent => {
-      const toolName = `ask_${agent.name.toLowerCase().replace(/\\s+/g, '_')}_agent`;
+      const toolName = AGENT_TOOL_NAME_PATTERN
+        .replace('{agent_name}', agent.name.toLowerCase().replace(/\s+/g, '_'));
+        
       this.logger.log(`Creating tool for agent: ${agent.name} as ${toolName}`);
       
       return new DynamicStructuredTool({
@@ -104,41 +153,60 @@ export class CoordinatorService implements OnModuleInit {
         schema: z.object({
           task: z.string().describe(`The task to delegate to the ${agent.name} agent`),
         }),
-        func: async (input) => {
+        func: async (input: { task: string }) => {
           const { task } = input;
           try {
-            this.logger.log(`Delegating task to ${agent.name}: ${task.substring(0, 50)}...`);
+            this.logger.log(`Delegating task to ${agent.name}: ${this.truncateLog(task)}`);
             const result = await agent.executor.invoke({ input: task });
             this.logger.log(`Got result from ${agent.name}`);
-            return result.output;
+            return result.output as string;
           } catch (error) {
-            this.logger.error(`Error delegating to ${agent.name}:`, error.stack);
-            return `Error with ${agent.name}: ${error.message}`;
+            const err = error as Error;
+            this.logger.error(`Error delegating to ${agent.name}:`, err.stack);
+            return `Error with ${agent.name}: ${err.message}`;
           }
         }
       });
     });
   }
 
+  /**
+   * Processes a user message and routes it to the appropriate agent
+   * 
+   * @param message - The user message to process
+   * @returns The response from the coordinator or agent
+   */
   async processMessage(message: string): Promise<string> {
-    if (!this.initialized) {
+    if (!this.initialized || !this.coordinatorAgent) {
       this.logger.warn('Coordinator not initialized yet, initializing now...');
       // Try to initialize synchronously if needed
       await this.agentDiscoveryService.discoverAndInitializeAgents();
       await this.initialize();
       
-      if (!this.initialized) {
+      if (!this.initialized || !this.coordinatorAgent) {
         throw new Error('Failed to initialize coordinator agent');
       }
     }
     
     try {
-      this.logger.log(`Processing message: ${message.substring(0, 50)}...`);
+      this.logger.log(`Processing message: ${this.truncateLog(message)}`);
       const result = await this.coordinatorAgent.invoke({ input: message });
-      return result.output;
+      return result.output as string;
     } catch (error) {
-      this.logger.error('Error processing message:', error.stack);
-      throw new Error(`Error processing message: ${error.message}`);
+      const err = error as Error;
+      this.logger.error('Error processing message:', err.stack);
+      throw new Error(`Error processing message: ${err.message}`);
     }
+  }
+
+  /**
+   * Truncates a string for logging purposes
+   * 
+   * @param text - The text to truncate
+   * @param maxLength - Maximum length before truncation
+   * @returns Truncated text
+   */
+  private truncateLog(text: string, maxLength = 50): string {
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
   }
 }

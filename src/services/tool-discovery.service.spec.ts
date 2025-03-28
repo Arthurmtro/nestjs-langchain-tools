@@ -1,10 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DiscoveryService, MetadataScanner, Reflector } from '@nestjs/core';
 import { ToolDiscoveryService } from './tool-discovery.service';
-import { TOOL_METADATA, ToolOptions } from '../decorators/tool.decorator';
+import { TOOL_METADATA } from '../decorators/tool.decorator';
 import { Injectable } from '@nestjs/common';
 import { AgentTool } from '../decorators/tool.decorator';
 import { z } from 'zod';
+import { ToolOptions } from '../interfaces/tool.interface';
 
 // Mock implementations
 class MockDiscoveryService {

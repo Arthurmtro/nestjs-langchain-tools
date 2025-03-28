@@ -4,7 +4,7 @@ import { CoordinatorService } from '../../src/services/coordinator.service';
 import { AgentDiscoveryService } from '../../src/services/agent-discovery.service';
 import { ToolDiscoveryService } from '../../src/services/tool-discovery.service';
 import { DiscoveryModule } from '@nestjs/core';
-import { ToolsAgent } from '../../src/decorators/agent.decorator';
+import { ModelProvider, ToolsAgent } from '../../src/decorators/agent.decorator';
 import { AgentTool } from '../../src/decorators/tool.decorator';
 import { z } from 'zod';
 import * as dotenv from 'dotenv';
@@ -17,7 +17,7 @@ dotenv.config();
   name: 'WeatherAgent',
   description: 'Can get weather forecasts for any location',
   systemPrompt: 'You are a helpful weather assistant that provides weather information. Always use your tools to get accurate data.',
-  modelType: 'openai',
+  modelType: ModelProvider.OPENAI,
   modelName: 'gpt-4o', // Using the latest model
   temperature: 0,
 })
@@ -43,7 +43,7 @@ class WeatherAgent {
   name: 'TravelAgent',
   description: 'Can provide travel recommendations and information',
   systemPrompt: 'You are a helpful travel assistant that provides travel information and recommendations. Always use your tools to provide the best answers.',
-  modelType: 'openai',
+  modelType: ModelProvider.OPENAI,
   modelName: 'gpt-4o', // Using the latest model
   temperature: 0,
   useMemory: true, // Enable conversation memory

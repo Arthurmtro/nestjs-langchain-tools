@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ToolsAgent } from '../../../src/decorators/agent.decorator';
+import { ModelProvider, ToolsAgent } from '../../../src/decorators/agent.decorator';
 import { AgentTool } from '../../../src/decorators/tool.decorator';
 import { z } from 'zod';
 
@@ -7,7 +7,7 @@ import { z } from 'zod';
   name: 'TravelAgent',
   description: 'Can provide travel recommendations and information',
   systemPrompt: 'You are a helpful travel assistant that provides travel information and recommendations.',
-  modelType: 'openai',
+  modelType: ModelProvider.OPENAI,
   temperature: 0,
   // Enable conversation memory to remember previous interactions
   useMemory: true,

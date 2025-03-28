@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CoordinatorService } from './coordinator.service';
-import { AgentDiscoveryService, AgentInfo } from './agent-discovery.service';
+import { AgentDiscoveryService } from './agent-discovery.service';
 import { AgentExecutor } from 'langchain/agents';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
+import { AgentInfo } from '../interfaces/agent.interface';
 
 // Mock implementation of AgentDiscoveryService
 class MockAgentDiscoveryService {

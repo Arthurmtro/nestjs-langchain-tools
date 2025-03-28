@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ToolsAgent } from '../../../src/decorators/agent.decorator';
+import { ModelProvider, ToolsAgent } from '../../../src/decorators/agent.decorator';
 import { AgentTool } from '../../../src/decorators/tool.decorator';
 import { z } from 'zod';
 
@@ -8,9 +8,9 @@ import { z } from 'zod';
   description: 'Can get weather forecasts for any location',
   systemPrompt: 'You are a helpful weather assistant that provides weather information.',
   // Use OpenAI by default, but you can change to other providers
-  modelType: 'openai',  
+  modelType: ModelProvider.OPENAI,
   // Or use Anthropic:
-  // modelType: 'anthropic',
+  // modelType: ModelProvider.ANTHROPIC,
   // modelName: 'claude-3-opus-20240229',
   temperature: 0,
 })

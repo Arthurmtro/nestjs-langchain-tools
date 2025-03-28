@@ -1,61 +1,46 @@
 import { SetMetadata } from '@nestjs/common';
+import { AgentOptions } from '../interfaces/agent.interface';
 
+/** 
+ * Metadata key for discovering agent classes
+ * @internal
+ */
 export const AGENT_METADATA = 'langchain:agent';
 
-export type ModelType = 'openai' | 'anthropic' | 'llama' | 'mistral' | 'custom';
-export type AgentType = 'openapi' | 'json' | 'react' | 'structured' | 'toolcalling' | 'custom';
+/**
+ * Re-export types from interfaces for backward compatibility
+ */
+export type { 
+  AgentOptions,
+  BaseAgentOptions,
+  OpenAIAgentOptions,
+  AnthropicAgentOptions,
+  LlamaAgentOptions,
+  MistralAgentOptions,
+  CustomModelAgentOptions
+} from '../interfaces/agent.interface';
 
-export interface BaseAgentOptions {
-  name: string;
-  description: string;
-  systemPrompt: string;
-  modelType?: ModelType;
-  agentType?: AgentType;
-  temperature?: number;
-  returnIntermediateSteps?: boolean;
-  handleParsingErrors?: boolean | string;
-  handleParsingErrorMessage?: string;
-  useMemory?: boolean;
-}
+export { ModelProvider, AgentType } from '../interfaces/agent.interface';
 
-export interface OpenAIAgentOptions extends BaseAgentOptions {
-  modelType?: 'openai';
-  modelName?: string;
-  apiKey?: string;
-  apiUrl?: string;
-}
-
-export interface AnthropicAgentOptions extends BaseAgentOptions {
-  modelType: 'anthropic';
-  modelName?: string;
-  apiKey?: string;
-}
-
-export interface LlamaAgentOptions extends BaseAgentOptions {
-  modelType: 'llama';
-  modelPath: string;
-  contextSize?: number;
-}
-
-export interface MistralAgentOptions extends BaseAgentOptions {
-  modelType: 'mistral';
-  modelName?: string;
-  apiKey?: string;
-}
-
-export interface CustomModelAgentOptions extends BaseAgentOptions {
-  modelType: 'custom';
-  modelProvider: any; // This will be injected from the module options
-  customAgentGenerator?: (model: any, tools: any[], prompt: any) => Promise<any>;
-}
-
-export type AgentOptions = 
-  | OpenAIAgentOptions 
-  | AnthropicAgentOptions 
-  | LlamaAgentOptions 
-  | MistralAgentOptions
-  | CustomModelAgentOptions;
-
-export const ToolsAgent = (options: AgentOptions) => {
+/**
+ * Class decorator that marks a NestJS provider as an LLM agent with tools
+ * 
+ * @param options - Configuration options for the agent
+ * @returns Decorator function
+ * 
+ * @example
+ * ```typescript
+ * @Injectable()
+ * @ToolsAgent({
+ *   name: 'Weather Agent',
+ *   description: 'Provides weather information',
+ *   systemPrompt: 'You are a weather specialist...',
+ *   modelType: ModelProvider.OPENAI,
+ *   modelName: 'gpt-4o',
+ * })
+ * export class WeatherAgentService { ... }
+ * ```
+ */
+export const ToolsAgent = (options: AgentOptions): ClassDecorator => {
   return SetMetadata(AGENT_METADATA, options);
 };
