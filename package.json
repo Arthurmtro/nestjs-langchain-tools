@@ -21,7 +21,9 @@
     "test:integration": "jest test/integration --detectOpenHandles",
     "example": "sh scripts/run-example.sh",
     "example:build": "npm run build && npm run example",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "version:bump": "node scripts/version-and-publish.js",
+    "ci:publish": "pnpm publish --no-git-checks"
   },
   "repository": {
     "type": "git",

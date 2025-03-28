@@ -209,6 +209,28 @@ Check out the complete example in the `/test/example-app` directory:
 - Travel Agent with hotel and attraction tools
 - Coordinator that routes questions to the right agent
 
+## 🔄 CI/CD Process
+
+This project uses GitHub Actions for continuous integration and delivery:
+
+1. **On Pull Requests to `master`**:
+   - Runs linting
+   - Performs type checking
+   - Executes all tests
+   - Builds the package
+
+2. **On Push to `master`**:
+   - Runs all the above checks
+   - Automatically publishes to npm if all checks pass
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes following conventional commits
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
 ## 📝 License
 
 MIT
