@@ -7,13 +7,11 @@ import { AppController } from './app.controller';
 @Module({
   imports: [
     LangChainToolsModule.forRoot({
-      // Optional global configuration
       coordinatorPrompt: `You are a travel planning assistant. You have access to specialized agents for weather and travel information. Route questions to the appropriate agent.`,
     }),
   ],
   controllers: [AppController],
   providers: [
-    // Register your agents
     WeatherAgent,
     TravelAgent,
   ],

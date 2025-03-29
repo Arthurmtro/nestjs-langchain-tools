@@ -9,7 +9,6 @@ import { z } from 'zod';
   systemPrompt: 'You are a helpful travel assistant that provides travel information and recommendations.',
   modelType: ModelProvider.OPENAI,
   temperature: 0,
-  // Enable conversation memory to remember previous interactions
   useMemory: true,
 })
 @Injectable()
@@ -24,7 +23,6 @@ export class TravelAgent {
   })
   async getAttractions(input: { location: string, category?: string }) {
     const { location, category = 'popular' } = input;
-    // In a real implementation, this would query a travel database
     return `Top ${category} attractions in ${location}: Museum of Modern Art, Central Park, Empire State Building.`;
   }
 
@@ -38,7 +36,6 @@ export class TravelAgent {
   })
   async getHotelRecommendations(input: { location: string, budget?: string }) {
     const { location, budget = 'mid-range' } = input;
-    // In a real implementation, this would query a hotel database
     return `Recommended ${budget} hotels in ${location}: Grand Hotel, Plaza Inn, City Suites.`;
   }
 
@@ -53,8 +50,7 @@ export class TravelAgent {
   })
   async searchFlights(input: { origin: string, destination: string, date: string }) {
     const { origin, destination, date } = input;
-    // In a real implementation, this would query a flight search API
-    return `Flights from ${origin} to ${destination} on ${date}: 
+    return `Flights from ${origin} to ${destination} on ${date}:
       - Airline XYZ: Departure 08:00, Arrival 10:30, $350
       - Airline ABC: Departure 12:15, Arrival 14:45, $295
       - Airline DEF: Departure 17:30, Arrival 20:00, $410`;
