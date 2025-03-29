@@ -4,6 +4,7 @@ import { ToolDiscoveryService } from '../services/tool-discovery.service';
 import { AgentDiscoveryService } from '../services/agent-discovery.service';
 import { CoordinatorService } from '../services/coordinator.service';
 import { MemoryService } from '../services/memory.service';
+import { VectorStoreService } from '../services/vector-store.service';
 import { LangChainToolsModuleOptions } from '../interfaces/module.interface';
 
 /**
@@ -17,8 +18,20 @@ export const LANGCHAIN_TOOLS_OPTIONS = 'LANGCHAIN_TOOLS_OPTIONS';
  */
 @Module({
   imports: [DiscoveryModule],
-  providers: [ToolDiscoveryService, AgentDiscoveryService, CoordinatorService, MemoryService],
-  exports: [ToolDiscoveryService, AgentDiscoveryService, CoordinatorService, MemoryService],
+  providers: [
+    ToolDiscoveryService, 
+    AgentDiscoveryService, 
+    CoordinatorService, 
+    MemoryService,
+    VectorStoreService
+  ],
+  exports: [
+    ToolDiscoveryService, 
+    AgentDiscoveryService, 
+    CoordinatorService, 
+    MemoryService,
+    VectorStoreService
+  ],
 })
 export class LangChainToolsModule {
   /**

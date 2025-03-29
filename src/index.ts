@@ -5,20 +5,23 @@
  */
 
 // Decorators
-export * from './decorators/tool.decorator';
-export * from './decorators/agent.decorator';
-export * from './decorators/inject-input.decorator';
+export * from './decorators';
 
 // Services
 export * from './services/tool-discovery.service';
 export * from './services/agent-discovery.service';
 export * from './services/coordinator.service';
+export * from './services/memory.service';
+export * from './services/vector-store.service';
 
 // Interfaces and Types
 export * from './interfaces';
 
 // Constants
 export * from './constants';
+
+// Utilities
+export * from './utils';
 
 // Module
 export * from './modules/langchain-tools.module';
