@@ -3,7 +3,11 @@ import { Subject } from 'rxjs';
 import { ToolStreamCallback, ToolStreamUpdate, ToolStreamUpdateType } from '../interfaces/tool.interface';
 import { LangChainToolsModuleOptions } from '../interfaces/module.interface';
 import { LANGCHAIN_TOOLS_OPTIONS } from '../modules/langchain-tools.module';
-import { TOOL_STREAM_UPDATE_INTERVAL, DEFAULT_TOOL_STREAMING_ENABLED } from '../constants/tool.constants';
+import { 
+  TOOL_STREAM_UPDATE_INTERVAL, 
+  DEFAULT_TOOL_STREAMING_ENABLED,
+  TOOL_TIMEOUT_ERROR_MESSAGE
+} from '../constants/tool.constants';
 
 /**
  * Service to manage streaming from tools
@@ -234,6 +238,35 @@ export class ToolStreamService {
       }, TOOL_STREAM_UPDATE_INTERVAL);
     } catch (error) {
       this.logger.error(`Error sending tool error update: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * Signals a timeout during tool execution
+   * 
+   * @param toolName - Name of the tool
+   * @param timeoutMs - Timeout duration in milliseconds
+   */
+  timeoutToolExecution(toolName: string, timeoutMs: number): void {
+    if (!this.streamEnabled) return;
+    
+    try {
+      const update: ToolStreamUpdate = {
+        type: ToolStreamUpdateType.TIMEOUT,
+        toolName,
+        content: `Timeout in ${toolName}`,
+        error: `${TOOL_TIMEOUT_ERROR_MESSAGE} after ${timeoutMs}ms`
+      };
+      
+      this.getToolStream(toolName).next(update);
+      this.logger.debug(`Tool execution timeout: ${toolName} - ${timeoutMs}ms`);
+      
+      // Clean up the stream
+      setTimeout(() => {
+        this.streams.delete(toolName);
+      }, TOOL_STREAM_UPDATE_INTERVAL);
+    } catch (error) {
+      this.logger.error(`Error sending tool timeout update: ${(error as Error).message}`);
     }
   }
   

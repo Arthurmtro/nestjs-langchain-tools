@@ -13,6 +13,8 @@ export * from './services/agent-discovery.service';
 export * from './services/coordinator.service';
 export * from './services/memory.service';
 export * from './services/vector-store.service';
+export * from './services/tool-stream.service';
+export * from './services/tool-timeout.service';
 
 // Interfaces and Types
 export * from './interfaces';

@@ -6,6 +6,7 @@ import { ToolInterface } from '@langchain/core/tools';
 import { TOOL_METADATA } from '../decorators/tool.decorator';
 import { ToolOptions, ToolStreamUpdateType } from '../interfaces/tool.interface';
 import { ToolStreamService } from './tool-stream.service';
+import { ToolTimeoutService, ToolTimeoutError } from './tool-timeout.service';
 
 /**
  * Service responsible for discovering and creating LangChain tools from decorated methods
@@ -19,6 +20,7 @@ export class ToolDiscoveryService {
     private readonly metadataScanner: MetadataScanner,
     private readonly reflector: Reflector,
     @Optional() private readonly toolStreamService?: ToolStreamService,
+    @Optional() private readonly toolTimeoutService?: ToolTimeoutService,
   ) {}
 
   /**
@@ -94,10 +96,56 @@ export class ToolDiscoveryService {
                   }
                   
                   try {
-                    // Execute the tool method - wrap in try/catch with direct logs
-                    this.logger.log(`Executing tool method: ${toolMetadata.name}`);
-                    const result = await method.call(instance, input);
-                    this.logger.log(`Tool execution completed: ${toolMetadata.name} with result length: ${result?.length || 0}`);
+                    // Check if timeout is enabled for this tool
+                    const timeoutEnabled = this.toolTimeoutService?.isTimeoutEnabled();
+                    let timeoutConfig = null;
+                    
+                    if (timeoutEnabled && this.toolTimeoutService) {
+                      timeoutConfig = this.toolTimeoutService.getToolTimeoutConfig(toolMetadata);
+                      
+                      if (timeoutConfig.enabled) {
+                        this.logger.log(
+                          `Tool execution with timeout: ${toolMetadata.name} (${timeoutConfig.durationMs}ms)`
+                        );
+                      }
+                    }
+                    
+                    // Define the execution function
+                    const executeTool = async () => {
+                      this.logger.log(`Executing tool method: ${toolMetadata.name}`);
+                      const result = await method.call(instance, input);
+                      this.logger.log(`Tool execution completed: ${toolMetadata.name} with result length: ${result?.length || 0}`);
+                      return result;
+                    };
+                    
+                    // Execute with or without timeout
+                    let result;
+                    if (timeoutEnabled && timeoutConfig?.enabled && this.toolTimeoutService) {
+                      try {
+                        result = await this.toolTimeoutService.executeWithTimeout(
+                          executeTool,
+                          toolMetadata.name,
+                          timeoutConfig.durationMs
+                        );
+                      } catch (timeoutError) {
+                        // Handle timeout error
+                        if (timeoutError instanceof ToolTimeoutError) {
+                          this.logger.warn(
+                            `Tool ${toolMetadata.name} timed out after ${timeoutConfig.durationMs}ms`
+                          );
+                          
+                          // We don't need to notify about timeout here because
+                          // the ToolTimeoutService already does that
+                          
+                          return `Error: Tool execution timed out after ${timeoutConfig.durationMs}ms`;
+                        }
+                        // Re-throw other errors to be caught by the outer catch
+                        throw timeoutError;
+                      }
+                    } else {
+                      // Execute without timeout
+                      result = await executeTool();
+                    }
                     
                     // Notify about tool execution completion
                     if (streamingEnabled) {

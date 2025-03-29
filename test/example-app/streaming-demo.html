@@ -113,6 +113,10 @@
     .tool-error {
       background-color: #ffebee;
     }
+    .tool-timeout {
+      background-color: #fce4ec;
+      border-left: 4px solid #e91e63;
+    }
     .progress-bar {
       height: 8px;
       background-color: #ddd;
@@ -245,6 +249,9 @@
           break;
         case 'error':
           updateContent = `❌ Error: ${toolName} - ${error || content || 'An error occurred'}`;
+          break;
+      case 'timeout':
+          updateContent = `⏱️ Timeout: ${toolName} - ${error || content || 'Operation timed out'}`;
           break;
       }
       

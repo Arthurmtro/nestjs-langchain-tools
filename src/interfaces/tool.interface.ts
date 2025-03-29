@@ -12,7 +12,8 @@ export enum ToolStreamUpdateType {
   START = 'start',
   PROGRESS = 'progress',
   ERROR = 'error',
-  COMPLETE = 'complete'
+  COMPLETE = 'complete',
+  TIMEOUT = 'timeout'
 }
 
 /**
@@ -39,6 +40,17 @@ export interface ToolStreamUpdate {
 }
 
 /**
+ * Configuration for tool timeouts
+ */
+export interface ToolTimeoutOptions {
+  /** Whether to enable timeout for this tool */
+  enabled: boolean;
+  
+  /** Timeout in milliseconds */
+  durationMs: number;
+}
+
+/**
  * Configuration for agent tools
  */
 export interface ToolOptions {
@@ -53,4 +65,7 @@ export interface ToolOptions {
   
   /** Whether this tool supports streaming updates */
   streaming?: boolean;
+  
+  /** Timeout configuration for the tool */
+  timeout?: ToolTimeoutOptions | number;
 }

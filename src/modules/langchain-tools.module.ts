@@ -6,6 +6,7 @@ import { CoordinatorService } from '../services/coordinator.service';
 import { MemoryService } from '../services/memory.service';
 import { VectorStoreService } from '../services/vector-store.service';
 import { ToolStreamService } from '../services/tool-stream.service';
+import { ToolTimeoutService } from '../services/tool-timeout.service';
 import { LangChainToolsModuleOptions } from '../interfaces/module.interface';
 
 /**
@@ -25,7 +26,8 @@ export const LANGCHAIN_TOOLS_OPTIONS = 'LANGCHAIN_TOOLS_OPTIONS';
     CoordinatorService, 
     MemoryService,
     VectorStoreService,
-    ToolStreamService
+    ToolStreamService,
+    ToolTimeoutService
   ],
   exports: [
     ToolDiscoveryService, 
@@ -33,7 +35,8 @@ export const LANGCHAIN_TOOLS_OPTIONS = 'LANGCHAIN_TOOLS_OPTIONS';
     CoordinatorService, 
     MemoryService,
     VectorStoreService,
-    ToolStreamService
+    ToolStreamService,
+    ToolTimeoutService
   ],
 })
 export class LangChainToolsModule {

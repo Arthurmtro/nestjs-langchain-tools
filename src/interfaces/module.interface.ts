@@ -2,6 +2,8 @@ import { ModelProvider } from './agent.interface';
 import { VectorStoreOptions } from './vector-store.interface';
 import { ToolStreamUpdate } from './tool.interface';
 
+import { ToolTimeoutOptions } from './tool.interface';
+
 /**
  * Configuration options for the LangChainTools module
  */
@@ -38,4 +40,10 @@ export interface LangChainToolsModuleOptions {
   
   /** Embedding model to use for document vectorization */
   embeddingModel?: string;
+  
+  /** Global tool timeout settings */
+  toolTimeout?: ToolTimeoutOptions | number;
+  
+  /** Callback for tool timeout events */
+  onToolTimeout?: (toolName: string, timeoutMs: number) => void;
 }
