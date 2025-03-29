@@ -9,12 +9,16 @@ import {
   Sse,
   MessageEvent,
   Headers,
-  Query
+  Query,
+  Inject,
+  Optional
 } from '@nestjs/common';
 import { Response } from 'express';
 import { Observable, Subject } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { CoordinatorService } from '../../src/services/coordinator.service';
+import { ToolStreamService } from '../../src/services/tool-stream.service';
+import { ToolStreamUpdate } from '../../src/interfaces/tool.interface';
 
 @Controller('api')
 export class AppController {
@@ -23,7 +27,10 @@ export class AppController {
   // In a production app, you would use Redis or another persistent store
   private readonly conversations = new Map<string, string[]>();
 
-  constructor(private readonly coordinatorService: CoordinatorService) {}
+  constructor(
+    private readonly coordinatorService: CoordinatorService,
+    @Optional() private readonly toolStreamService?: ToolStreamService
+  ) {}
 
   // Helper to get or create a conversation for a session
   private getOrCreateConversation(sessionId: string = 'default'): string[] {
@@ -106,6 +113,17 @@ export class AppController {
 
       let fullResponse = '';
 
+      // Setup tool streaming if available
+      if (this.toolStreamService?.isStreamingEnabled()) {
+        this.toolStreamService.setCallback((update: ToolStreamUpdate) => {
+          res.write(`data: ${JSON.stringify({ toolUpdate: update })}\n\n`);
+          // Ensure the data is sent immediately
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+        });
+      }
+      
       // Stream the response
       try {
         await this.coordinatorService.processMessage(
@@ -115,7 +133,6 @@ export class AppController {
             fullResponse += token;
             res.write(`data: ${JSON.stringify({ token })}\n\n`);
             // Ensure the data is sent immediately
-            // Some Node.js response implementations have flush
             if (typeof (res as any).flush === 'function') {
               (res as any).flush();
             }
@@ -175,6 +192,13 @@ export class AppController {
     const subject = new Subject<MessageEvent>();
 
     let fullResponse = '';
+    
+    // Setup tool streaming if available
+    if (this.toolStreamService?.isStreamingEnabled()) {
+      this.toolStreamService.setCallback((update: ToolStreamUpdate) => {
+        subject.next({ data: { toolUpdate: update } });
+      });
+    }
 
     // Process the message and stream tokens
     this.coordinatorService.processMessage(

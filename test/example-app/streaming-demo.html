@@ -86,6 +86,46 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+    
+    /* Tool update styles */
+    .tool-updates {
+      margin-top: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 10px;
+      background-color: #f8f9fa;
+    }
+    .tool-update {
+      margin-bottom: 5px;
+      padding: 5px;
+      border-radius: 3px;
+    }
+    .tool-start {
+      background-color: #e3f2fd;
+    }
+    .tool-progress {
+      background-color: #e8f5e9;
+    }
+    .tool-complete {
+      background-color: #e0f7fa;
+    }
+    .tool-error {
+      background-color: #ffebee;
+    }
+    .progress-bar {
+      height: 8px;
+      background-color: #ddd;
+      border-radius: 4px;
+      margin-top: 5px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background-color: #4caf50;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
     .streaming-options {
       display: flex;
       gap: 20px;
@@ -165,6 +205,71 @@
       chatContainer.appendChild(messageDiv);
       chatContainer.scrollTop = chatContainer.scrollHeight;
       return messageDiv;
+    }
+    
+    // Create a container for tool updates
+    function createToolUpdatesContainer() {
+      const container = document.createElement('div');
+      container.className = 'tool-updates';
+      container.innerHTML = '<h4>Tool Execution Updates:</h4>';
+      chatContainer.appendChild(container);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      return container;
+    }
+    
+    // Add a tool update to the container
+    function addToolUpdate(container, update) {
+      const { type, toolName, content, progress, error } = update;
+      
+      // Create the update element
+      const updateDiv = document.createElement('div');
+      updateDiv.className = `tool-update tool-${type}`;
+      updateDiv.setAttribute('data-tool', toolName);
+      
+      // Set content based on update type
+      let updateContent = '';
+      switch (type) {
+        case 'start':
+          updateContent = `▶️ Started: ${toolName} - ${content || ''}`;
+          break;
+        case 'progress':
+          updateContent = `🔄 ${content || 'Processing...'}`;
+          break;
+        case 'complete':
+          updateContent = `✅ Completed: ${toolName} - ${content || ''}`;
+          if (update.result) {
+            updateContent += `\nResult: ${update.result}`;
+          }
+          break;
+        case 'error':
+          updateContent = `❌ Error: ${toolName} - ${error || content || 'An error occurred'}`;
+          break;
+      }
+      
+      updateDiv.textContent = updateContent;
+      
+      // Add progress bar if progress is provided
+      if (progress !== undefined && type === 'progress') {
+        const progressBar = document.createElement('div');
+        progressBar.className = 'progress-bar';
+        
+        const progressFill = document.createElement('div');
+        progressFill.className = 'progress-fill';
+        progressFill.style.width = `${progress}%`;
+        
+        progressBar.appendChild(progressFill);
+        updateDiv.appendChild(progressBar);
+      }
+      
+      // Either update an existing element or add a new one
+      const existingUpdate = container.querySelector(`.tool-update[data-tool="${toolName}"]`);
+      if (existingUpdate && type === 'progress') {
+        container.replaceChild(updateDiv, existingUpdate);
+      } else {
+        container.appendChild(updateDiv);
+      }
+      
+      chatContainer.scrollTop = chatContainer.scrollHeight;
     }
     
     // Show loading indicator
@@ -249,6 +354,9 @@
         // Create bot message container
         const botMessageDiv = addMessage('', false);
         
+        // Create tool updates container
+        const toolUpdatesContainer = createToolUpdatesContainer();
+        
         // Create EventSource for SSE endpoint with message and session ID as query parameters
         const eventSource = new EventSource(
           `http://localhost:4000/api/chat/sse?message=${encodeURIComponent(message)}&session-id=${encodeURIComponent(sessionId)}`
@@ -261,6 +369,10 @@
           if (data.token) {
             botMessageDiv.textContent += data.token;
             chatContainer.scrollTop = chatContainer.scrollHeight;
+          }
+          
+          if (data.toolUpdate) {
+            addToolUpdate(toolUpdatesContainer, data.toolUpdate);
           }
           
           if (data.done || data.error) {
@@ -295,6 +407,9 @@
       try {
         // Create bot message container
         const botMessageDiv = addMessage('', false);
+        
+        // Create tool updates container
+        const toolUpdatesContainer = createToolUpdatesContainer();
         
         const response = await fetch('http://localhost:4000/api/chat/stream', {
           method: 'POST',
@@ -332,6 +447,10 @@
                 if (data.token) {
                   botMessageDiv.textContent += data.token;
                   chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+                
+                if (data.toolUpdate) {
+                  addToolUpdate(toolUpdatesContainer, data.toolUpdate);
                 }
                 
                 if (data.done || data.error) {
