@@ -85,7 +85,7 @@ import { AppController } from './app.controller';
       // Vector store configuration - using in-memory store for the example
       vectorStore: {
         type: VectorStoreType.MEMORY,
-        collectionName: 'default'
+        collectionName: 'knowledge_base' // Match the collection name used in KnowledgeAgent
       },
       // Default embedding model
       embeddingModel: 'text-embedding-3-small',

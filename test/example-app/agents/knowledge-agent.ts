@@ -20,8 +20,8 @@ import { DocumentProcessor } from '../../../src/utils/document-processor';
 @WithRetrieval({
   enabled: true,
   collectionName: 'knowledge_base',
-  topK: 5,
-  scoreThreshold: 0.7,
+  topK: 10,             // Increase from 5 to 10 for more results
+  scoreThreshold: 0.5,  // Lower threshold to include more matches
   includeMetadata: true,
   storeRetrievedContext: true,
 })
@@ -101,11 +101,18 @@ export class KnowledgeAgent {
         }
       );
 
+      // Log what we're adding for debugging
+      console.log(`Adding document to knowledge base - Title: "${input.title || 'User Input'}", Source: "${input.source || 'User'}", Category: "${input.category || 'General'}"`);
+      console.log(`Content: "${input.content.substring(0, 100)}${input.content.length > 100 ? '...' : ''}"`);
+      
+      // For short content, don't split to avoid losing context
+      const shouldSplit = input.content.length > 200;
+      
       // Add to knowledge base
       await this.vectorStoreService.addDocuments([document], 'knowledge_base', {
-        splitDocument: true,  // Split longer documents
-        chunkSize: 1000,
-        chunkOverlap: 200,
+        splitDocument: shouldSplit,
+        chunkSize: 200,       // Smaller chunks for better retrieval
+        chunkOverlap: 50,
       });
 
       return `Successfully added to knowledge base: "${input.title || 'New content'}"`;
