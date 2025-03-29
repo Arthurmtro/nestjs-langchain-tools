@@ -38,6 +38,11 @@ export class AppController {
       this.logger.warn('Tool streaming service is not available');
     }
   }
+  
+  @Get()
+  redirectToDemo(@Res() res: Response) {
+    res.redirect('/streaming-demo.html');
+  }
 
   // Helper to get or create a conversation for a session
   private getOrCreateConversation(sessionId: string = 'default'): string[] {
