@@ -23,8 +23,11 @@ export class AppController {
   constructor(private readonly coordinatorService: CoordinatorService) {}
 
   @Post('chat')
-  async chat(@Body() body: { message: string }): Promise<{ response: string }> {
-    this.logger.log(`Received chat request: ${JSON.stringify(body)}`);
+  async chat(
+    @Body() body: { message: string },
+    @Headers('session-id') sessionId?: string
+  ): Promise<{ response: string }> {
+    this.logger.log(`Received chat request: ${JSON.stringify(body)}, sessionId: ${sessionId || 'default'}`);
     
     if (!body || typeof body.message !== 'string') {
       this.logger.error(`Invalid request body: ${JSON.stringify(body)}`);
@@ -32,7 +35,12 @@ export class AppController {
     }
     
     this.logger.log(`Processing message: ${body.message}`);
-    const response = await this.coordinatorService.processMessage(body.message);
+    const response = await this.coordinatorService.processMessage(
+      body.message, 
+      false, 
+      undefined, 
+      sessionId
+    );
     this.logger.log(`Response generated: ${response}`);
     
     return { response };
@@ -42,9 +50,10 @@ export class AppController {
   async chatStream(
     @Body() body: { message: string },
     @Res() res: Response,
-    @Headers('accept') accept: string
+    @Headers('accept') accept: string,
+    @Headers('session-id') sessionId?: string
   ): Promise<void> {
-    this.logger.log(`Received streaming chat request: ${JSON.stringify(body)}`);
+    this.logger.log(`Received streaming chat request: ${JSON.stringify(body)}, sessionId: ${sessionId || 'default'}`);
     
     if (!body || typeof body.message !== 'string') {
       this.logger.error(`Invalid request body: ${JSON.stringify(body)}`);
@@ -79,7 +88,8 @@ export class AppController {
             if (typeof (res as any).flush === 'function') {
               (res as any).flush();
             }
-          }
+          },
+          sessionId
         );
         
         // Signal completion
@@ -94,7 +104,12 @@ export class AppController {
     } else {
       // Fall back to regular JSON response for clients that don't support SSE
       try {
-        const fullResponse = await this.coordinatorService.processMessage(body.message);
+        const fullResponse = await this.coordinatorService.processMessage(
+          body.message,
+          false,
+          undefined,
+          sessionId
+        );
         res.json({ response: fullResponse });
       } catch (error) {
         const err = error as Error;
@@ -105,9 +120,16 @@ export class AppController {
   }
   
   @Sse('chat/sse')
-  chatSSE(@Headers('message') headerMessage: string, @Query('message') queryMessage: string): Observable<MessageEvent> {
+  chatSSE(
+    @Headers('message') headerMessage: string, 
+    @Query('message') queryMessage: string,
+    @Headers('session-id') headerSessionId?: string,
+    @Query('session-id') querySessionId?: string
+  ): Observable<MessageEvent> {
     const message = queryMessage || headerMessage;
-    this.logger.log(`Received SSE chat request: message=${message}`);
+    const sessionId = querySessionId || headerSessionId || 'default';
+    
+    this.logger.log(`Received SSE chat request: message=${message}, sessionId=${sessionId}`);
     
     if (!message) {
       throw new Error('Message is required. Pass it as a query parameter: ?message=your_message');
@@ -122,7 +144,8 @@ export class AppController {
       true,
       (token: string) => {
         subject.next({ data: { token } });
-      }
+      },
+      sessionId
     )
     .then(() => {
       // Complete the stream when done

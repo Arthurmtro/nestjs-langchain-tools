@@ -3,6 +3,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { AgentExecutor, createOpenAIFunctionsAgent } from 'langchain/agents';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
 import { AgentDiscoveryService } from './agent-discovery.service';
+import { MemoryService } from './memory.service';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { BufferMemory } from 'langchain/memory';
@@ -27,6 +28,7 @@ export class CoordinatorService implements OnModuleInit {
 
   constructor(
     private readonly agentDiscoveryService: AgentDiscoveryService,
+    private readonly memoryService: MemoryService,
     @Optional() @Inject(LANGCHAIN_TOOLS_OPTIONS) 
     private readonly options?: LangChainToolsModuleOptions,
   ) {}
@@ -181,12 +183,14 @@ export class CoordinatorService implements OnModuleInit {
    * @param message - The user message to process
    * @param streaming - Whether to use streaming for this message
    * @param onToken - Optional callback for token streaming
+   * @param sessionId - Session identifier for memory management
    * @returns The response from the coordinator or agent
    */
   async processMessage(
     message: string, 
     streaming: boolean = false,
-    onToken?: (token: string) => void
+    onToken?: (token: string) => void,
+    sessionId: string = 'default'
   ): Promise<string> {
     if (!this.initialized || !this.coordinatorAgent) {
       this.logger.warn('Coordinator not initialized yet, initializing now...');
@@ -200,16 +204,31 @@ export class CoordinatorService implements OnModuleInit {
     }
     
     try {
-      this.logger.log(`Processing message: ${this.truncateLog(message)}`);
+      this.logger.log(`Processing message: ${this.truncateLog(message)} (session: ${sessionId})`);
+      
+      // Add the message to memory
+      this.memoryService.addHumanMessage(message, sessionId);
+      
+      // Create a memory instance for this session
+      const memory = this.memoryService.getChatMemoryForSession(sessionId);
+      
+      // Update the coordinator agent with the session memory
+      this.coordinatorAgent.memory = memory;
       
       // Use streaming if requested
+      let response: string;
       if (streaming) {
-        return await this.processMessageStreaming(message, onToken);
+        response = await this.processMessageStreaming(message, onToken);
+      } else {
+        // Otherwise use standard processing
+        const result = await this.coordinatorAgent.invoke({ input: message });
+        response = result.output as string;
       }
       
-      // Otherwise use standard processing
-      const result = await this.coordinatorAgent.invoke({ input: message });
-      return result.output as string;
+      // Add the response to memory
+      this.memoryService.addAIMessage(response, sessionId);
+      
+      return response;
     } catch (error) {
       const err = error as Error;
       this.logger.error('Error processing message:', err.stack);
