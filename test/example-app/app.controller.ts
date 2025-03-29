@@ -41,7 +41,7 @@ export class AppController {
   
   @Get()
   redirectToDemo(@Res() res: Response) {
-    res.redirect('/streaming-demo.html');
+    res.redirect('/interactive-demo.html');
   }
 
   // Helper to get or create a conversation for a session

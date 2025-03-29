@@ -20,6 +20,8 @@
       --light-gray: #f0f0f0;
       --gray: #888888;
       --dark-gray: #484848;
+      --success-green: #4caf50;
+      --info-blue: #2196f3;
       --border-radius: 8px;
       --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
@@ -174,6 +176,212 @@
       transform: translateY(-2px);
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
       color: var(--dark-teal);
+    }
+    
+    /* RAG Panel Styles */
+    .rag-panel {
+      border: 1px solid var(--info-blue);
+      border-radius: var(--border-radius);
+      background-color: var(--white);
+      margin-bottom: 15px;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    
+    .rag-panel-header {
+      padding: 12px 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: var(--info-blue);
+      color: var(--white);
+      font-weight: 500;
+    }
+    
+    .rag-panel-header button {
+      background-color: rgba(255, 255, 255, 0.2);
+      font-size: 0.85rem;
+      padding: 6px 12px;
+    }
+    
+    .rag-panel-content {
+      padding: 15px;
+    }
+    
+    .rag-panel-sections {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    
+    .rag-add-section, .rag-status-section {
+      flex: 1;
+      min-width: 300px;
+    }
+    
+    .rag-panel h3 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 1rem;
+      color: var(--dark-teal);
+      font-weight: 600;
+      border-bottom: 2px solid var(--info-blue);
+      padding-bottom: 5px;
+    }
+    
+    .rag-metadata {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    
+    .rag-metadata input, .rag-metadata select {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid var(--light-gray);
+      border-radius: var(--border-radius);
+    }
+    
+    textarea#rag-content {
+      width: 100%;
+      height: 100px;
+      padding: 10px;
+      border: 1px solid var(--light-gray);
+      border-radius: var(--border-radius);
+      margin-bottom: 10px;
+      font-family: 'Inter', sans-serif;
+      resize: vertical;
+    }
+    
+    .rag-btn {
+      background-color: var(--info-blue);
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      transition: background-color 0.3s, transform 0.2s;
+      width: 100%;
+    }
+    
+    .rag-btn:hover {
+      background-color: #1976d2;
+      transform: translateY(-2px);
+    }
+    
+    #kb-status {
+      background-color: var(--light-gray);
+      padding: 10px;
+      border-radius: var(--border-radius);
+      font-size: 0.9rem;
+    }
+    
+    #kb-status ul {
+      margin: 5px 0;
+      padding-left: 20px;
+    }
+    
+    #kb-status p:last-child {
+      margin-bottom: 0;
+    }
+    
+    .kb-update-notification {
+      color: var(--success-green);
+      margin: 5px 0;
+      font-weight: 500;
+    }
+    
+    .rag-visualization {
+      margin-top: 15px;
+      border: 1px solid var(--light-gray);
+      border-radius: var(--border-radius);
+      overflow: hidden;
+    }
+    
+    .rag-viz-header {
+      background-color: var(--light-gray);
+      padding: 8px 10px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .rag-viz-tip {
+      font-size: 0.8rem;
+      color: var(--gray);
+      font-weight: normal;
+    }
+    
+    #rag-viz-container {
+      min-height: 100px;
+      padding: 10px;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+    
+    .empty-viz {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #f9f9f9;
+      height: 100px;
+    }
+    
+    .empty-viz-message {
+      color: var(--gray);
+      font-style: italic;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    
+    .document-card {
+      margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid var(--light-gray);
+      border-radius: var(--border-radius);
+      background-color: var(--white);
+    }
+    
+    .document-card-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+      font-size: 0.85rem;
+    }
+    
+    .document-title {
+      font-weight: 600;
+      color: var(--dark-teal);
+    }
+    
+    .document-score {
+      background-color: var(--dark-teal-lighter);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+    }
+    
+    .document-metadata {
+      font-size: 0.75rem;
+      color: var(--gray);
+      margin-bottom: 5px;
+    }
+    
+    .document-content {
+      font-size: 0.85rem;
+      line-height: 1.4;
+      border-left: 3px solid var(--info-blue);
+      padding-left: 10px;
+      max-height: 80px;
+      overflow-y: auto;
+      background-color: #f9f9f9;
+      padding: 8px;
+      border-radius: 4px;
     }
     
     /* Chat container */
@@ -380,6 +588,13 @@
           <button class="example-prompt">What are some places to visit in Tokyo?</button>
         </div>
         <div class="prompt-category">
+          <h3>Knowledge Base (RAG)</h3>
+          <button class="example-prompt">Tell me about NestJS framework</button>
+          <button class="example-prompt">What is Retrieval Augmented Generation?</button>
+          <button class="example-prompt">How do vector databases work?</button>
+          <button class="example-prompt">Compare LangChain features and benefits</button>
+        </div>
+        <div class="prompt-category">
           <h3>Streaming Tool Demo</h3>
           <button class="example-prompt">Show me a slow process with 8 steps</button>
           <button class="example-prompt">Use the failing_process tool with steps_before_failure: 3</button>
@@ -393,6 +608,55 @@
       </div>
     </div>
     
+    <!-- RAG Interaction Panel -->
+    <div class="rag-panel">
+      <div class="rag-panel-header">
+        <span>Knowledge Base (RAG) Management</span>
+        <button id="toggle-rag-panel">Show</button>
+      </div>
+      <div class="rag-panel-content" style="display: none;">
+        <div class="rag-panel-sections">
+          <div class="rag-add-section">
+            <h3>Add to Knowledge Base</h3>
+            <textarea id="rag-content" placeholder="Enter text to add to the knowledge base..."></textarea>
+            <div class="rag-metadata">
+              <input type="text" id="rag-title" placeholder="Title (optional)">
+              <input type="text" id="rag-source" placeholder="Source (optional)">
+              <select id="rag-category">
+                <option value="general">General</option>
+                <option value="technical">Technical</option>
+                <option value="business">Business</option>
+                <option value="documentation">Documentation</option>
+              </select>
+            </div>
+            <button id="add-to-kb-btn" class="rag-btn">Add to Knowledge Base</button>
+          </div>
+          <div class="rag-status-section">
+            <h3>Knowledge Base Status</h3>
+            <div id="kb-status">
+              <p>Current knowledge base contains default documents about:</p>
+              <ul>
+                <li>NestJS Framework</li>
+                <li>LangChain</li>
+                <li>Retrieval Augmented Generation (RAG)</li>
+                <li>Vector Databases</li>
+              </ul>
+              <p>Add your own knowledge or ask questions to see RAG in action!</p>
+            </div>
+            <div class="rag-visualization">
+              <div class="rag-viz-header">
+                <span>Document Retrieval Visualization</span>
+                <span class="rag-viz-tip">(Will show retrieved documents when you query the knowledge base)</span>
+              </div>
+              <div id="rag-viz-container" class="empty-viz">
+                <div class="empty-viz-message">No documents retrieved yet. Ask a question to see RAG in action.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="chat-container" id="chat-container"></div>
     
     <form id="chat-form">
@@ -402,357 +666,524 @@
   </div>
 
   <script>
-    const chatContainer = document.getElementById('chat-container');
-    const chatForm = document.getElementById('chat-form');
-    const messageInput = document.getElementById('message-input');
-    const submitBtn = document.getElementById('submit-btn');
-    const sessionIdInput = document.getElementById('session-id');
-    const newSessionBtn = document.getElementById('new-session');
-    const toggleExamplesBtn = document.getElementById('toggle-examples');
-    const examplesContent = document.querySelector('.example-prompts-content');
-    const showToolUpdatesCheckbox = document.getElementById('show-tool-updates');
-    const examplePromptButtons = document.querySelectorAll('.example-prompt');
-    
-    // Toggle example prompts visibility
-    toggleExamplesBtn.addEventListener('click', () => {
-      if (examplesContent.style.display === 'none') {
-        examplesContent.style.display = 'flex';
-        toggleExamplesBtn.textContent = 'Hide';
-      } else {
-        examplesContent.style.display = 'none';
-        toggleExamplesBtn.textContent = 'Show';
+    document.addEventListener('DOMContentLoaded', function() {
+      // DOM Elements
+      const chatContainer = document.getElementById('chat-container');
+      const chatForm = document.getElementById('chat-form');
+      const messageInput = document.getElementById('message-input');
+      const submitBtn = document.getElementById('submit-btn');
+      const sessionIdInput = document.getElementById('session-id');
+      const newSessionBtn = document.getElementById('new-session');
+      const toggleExamplesBtn = document.getElementById('toggle-examples');
+      const examplesContent = document.querySelector('.example-prompts-content');
+      const showToolUpdatesCheckbox = document.getElementById('show-tool-updates');
+      const examplePromptButtons = document.querySelectorAll('.example-prompt');
+      
+      // RAG elements
+      const toggleRagPanelBtn = document.getElementById('toggle-rag-panel');
+      const ragPanelContent = document.querySelector('.rag-panel-content');
+      const addToKbBtn = document.getElementById('add-to-kb-btn');
+      const ragContent = document.getElementById('rag-content');
+      const ragTitle = document.getElementById('rag-title');
+      const ragSource = document.getElementById('rag-source');
+      const ragCategory = document.getElementById('rag-category');
+      const ragVizContainer = document.getElementById('rag-viz-container');
+      
+      // Show initial welcome message
+      addWelcomeMessage();
+      
+      // Toggle elements visibility handler
+      function toggleVisibility(contentElement, buttonElement) {
+        return function() {
+          if (contentElement.style.display === 'none') {
+            contentElement.style.display = contentElement.classList.contains('rag-panel-content') ? 'block' : 'flex';
+            buttonElement.textContent = 'Hide';
+          } else {
+            contentElement.style.display = 'none';
+            buttonElement.textContent = 'Show';
+          }
+        };
       }
-    });
-    
-    // Handle example prompt buttons
-    examplePromptButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        messageInput.value = button.textContent;
-        messageInput.focus();
-        // Smooth scroll to the input field
-        messageInput.scrollIntoView({ behavior: 'smooth' });
+      
+      // Toggle example prompts visibility
+      toggleExamplesBtn.addEventListener('click', toggleVisibility(examplesContent, toggleExamplesBtn));
+      
+      // Toggle RAG panel visibility
+      toggleRagPanelBtn.addEventListener('click', toggleVisibility(ragPanelContent, toggleRagPanelBtn));
+      
+      // Handle example prompt buttons
+      examplePromptButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          messageInput.value = button.textContent;
+          messageInput.focus();
+          // Smooth scroll to the input field
+          messageInput.scrollIntoView({ behavior: 'smooth' });
+        });
       });
-    });
-    
-    // Generate a new random session ID
-    newSessionBtn.addEventListener('click', () => {
-      const randomId = 'session_' + Math.random().toString(36).substring(2, 10);
-      sessionIdInput.value = randomId;
-      chatContainer.innerHTML = ''; // Clear chat for new session
-      addWelcomeMessage(); // Add welcome message for new session
-    });
-    
-    // Add a welcome message to the chat
-    function addWelcomeMessage() {
-      const welcomeDiv = document.createElement('div');
-      welcomeDiv.className = 'message bot-message';
-      welcomeDiv.innerHTML = `
-        <strong>👋 Welcome to the NestJS LangChain Tools Demo!</strong><br><br>
-        This interactive demo showcases various features:<br>
-        • Multi-agent routing for specialized tasks<br>
-        • Tool execution with streaming updates<br>
-        • Timeout handling for long-running operations<br><br>
-        Try the example prompts above or ask any question to get started!
-      `;
-      chatContainer.appendChild(welcomeDiv);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-    
-    // Show welcome message on initial load
-    addWelcomeMessage();
-    
-    // Add a message to the chat
-    function addMessage(text, isUser = false) {
-      const messageDiv = document.createElement('div');
-      messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
-      messageDiv.textContent = text;
-      chatContainer.appendChild(messageDiv);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-      return messageDiv;
-    }
-    
-    // Create a container for tool updates
-    function createToolUpdatesContainer() {
-      // Check if tool updates should be shown
-      if (!document.getElementById('show-tool-updates').checked) {
-        return null;
-      }
       
-      const container = document.createElement('div');
-      container.className = 'tool-updates';
-      container.innerHTML = '<h4>Tool Execution Updates:</h4>';
-      chatContainer.appendChild(container);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-      return container;
-    }
-    
-    // Add a tool update to the container
-    function addToolUpdate(container, update) {
-      // If container is null or tool updates are disabled, just log to console and return
-      if (!container || !document.getElementById('show-tool-updates').checked) {
-        console.log('Tool update (hidden from UI):', update);
-        return;
-      }
+      // Generate a new random session ID
+      newSessionBtn.addEventListener('click', () => {
+        const randomId = 'session_' + Math.random().toString(36).substring(2, 10);
+        sessionIdInput.value = randomId;
+        chatContainer.innerHTML = ''; // Clear chat for new session
+        addWelcomeMessage(); // Add welcome message for new session
+      });
       
-      const { type, toolName, content, progress, error } = update;
-      
-      console.log('Tool update received:', update); // Log to console for debugging
-      
-      // Create the update element
-      const updateDiv = document.createElement('div');
-      updateDiv.className = `tool-update tool-${type}`;
-      updateDiv.setAttribute('data-tool', toolName);
-      
-      // Set content based on update type
-      let updateContent = '';
-      switch (type) {
-        case 'start':
-          updateContent = `▶️ Started: ${toolName} - ${content || ''}`;
-          break;
-        case 'progress':
-          updateContent = `🔄 ${content || 'Processing...'}${progress !== undefined ? ` (${progress}%)` : ''}`;
-          break;
-        case 'complete':
-          updateContent = `✅ Completed: ${toolName} - ${content || ''}`;
-          if (update.result) {
-            updateContent += `\nResult: ${update.result}`;
-          }
-          break;
-        case 'error':
-          updateContent = `❌ Error: ${toolName} - ${error || content || 'An error occurred'}`;
-          break;
-        case 'timeout':
-          updateContent = `⏱️ Timeout: ${toolName} - ${error || content || 'Operation timed out'}`;
-          break;
-      }
-      
-      updateDiv.textContent = updateContent;
-      
-      // Add progress bar if progress is provided or if it's a progress update
-      if ((progress !== undefined || type === 'progress') && type !== 'error') {
-        const progressBar = document.createElement('div');
-        progressBar.className = 'progress-bar';
+      // Handle form submission
+      chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const message = messageInput.value.trim();
+        if (!message) return;
         
-        const progressFill = document.createElement('div');
-        progressFill.className = 'progress-fill';
-        progressFill.style.width = `${progress || 0}%`;
+        // Add user message to chat
+        addMessage(message, true);
+        messageInput.value = '';
         
-        progressBar.appendChild(progressFill);
-        updateDiv.appendChild(progressBar);
-      }
-      
-      // Either update an existing element or add a new one
-      const existingUpdate = container.querySelector(`.tool-update[data-tool="${toolName}"]`);
-      if (existingUpdate && type === 'progress') {
-        container.replaceChild(updateDiv, existingUpdate);
-      } else {
-        container.appendChild(updateDiv);
-      }
-      
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-    
-    // Show loading indicator
-    function showLoading() {
-      submitBtn.disabled = true;
-      const loadingDiv = document.createElement('div');
-      loadingDiv.className = 'loading';
-      submitBtn.appendChild(loadingDiv);
-    }
-    
-    // Hide loading indicator
-    function hideLoading() {
-      submitBtn.disabled = false;
-      const loading = submitBtn.querySelector('.loading');
-      if (loading) {
-        loading.remove();
-      }
-    }
-    
-    // Handle form submission
-    chatForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const message = messageInput.value.trim();
-      if (!message) return;
-      
-      // Add user message to chat
-      addMessage(message, true);
-      messageInput.value = '';
-      
-      // Get the selected streaming option
-      const streamingOption = document.querySelector('input[name="stream-type"]:checked').value;
-      
-      // Process message based on streaming option
-      switch (streamingOption) {
-        case 'none':
-          await processMessageNoStreaming(message);
-          break;
-        case 'sse':
-          await processMessageSSE(message);
-          break;
-        case 'fetch':
-          await processMessageFetchStreaming(message);
-          break;
-      }
-    });
-    
-    // Process message without streaming
-    async function processMessageNoStreaming(message) {
-      showLoading();
-      const sessionId = sessionIdInput.value;
-      
-      try {
-        const response = await fetch('http://localhost:4000/api/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Session-ID': sessionId
-          },
-          body: JSON.stringify({ message }),
-        });
+        // Get the selected streaming option
+        const streamingOption = document.querySelector('input[name="stream-type"]:checked').value;
         
-        if (!response.ok) {
-          throw new Error(`Error: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        addMessage(data.response);
-      } catch (error) {
-        console.error('Error:', error);
-        addMessage(`Error: ${error.message}`);
-      } finally {
-        hideLoading();
-      }
-    }
-    
-    // Process message with SSE
-    async function processMessageSSE(message) {
-      showLoading();
-      const sessionId = sessionIdInput.value;
-      
-      try {
-        // Create bot message container
-        const botMessageDiv = addMessage('', false);
-        
-        // Create tool updates container
-        const toolUpdatesContainer = createToolUpdatesContainer();
-        
-        // Create EventSource for SSE endpoint with message and session ID as query parameters
-        const eventSource = new EventSource(
-          `http://localhost:4000/api/chat/sse?message=${encodeURIComponent(message)}&session-id=${encodeURIComponent(sessionId)}`
-        );
-        
-        // Handle incoming messages
-        eventSource.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          
-          if (data.token) {
-            botMessageDiv.textContent += data.token;
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-          }
-          
-          if (data.toolUpdate) {
-            addToolUpdate(toolUpdatesContainer, data.toolUpdate);
-          }
-          
-          if (data.done || data.error) {
-            eventSource.close();
-            hideLoading();
-            
-            if (data.error) {
-              botMessageDiv.textContent += `\nError: ${data.error}`;
-            }
-          }
-        };
-        
-        // Handle errors
-        eventSource.onerror = (error) => {
-          console.error('SSE Error:', error);
-          eventSource.close();
-          botMessageDiv.textContent += `\nConnection error occurred.`;
-          hideLoading();
-        };
-      } catch (error) {
-        console.error('Error setting up SSE:', error);
-        addMessage(`Error: ${error.message}`);
-        hideLoading();
-      }
-    }
-    
-    // Process message with fetch streaming
-    async function processMessageFetchStreaming(message) {
-      showLoading();
-      const sessionId = sessionIdInput.value;
-      
-      try {
-        // Create bot message container
-        const botMessageDiv = addMessage('', false);
-        
-        // Create tool updates container
-        const toolUpdatesContainer = createToolUpdatesContainer();
-        
-        const response = await fetch('http://localhost:4000/api/chat/stream', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'text/event-stream',
-            'Session-ID': sessionId
-          },
-          body: JSON.stringify({ message }),
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Error: ${response.status}`);
-        }
-        
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) {
+        // Process message based on streaming option
+        switch (streamingOption) {
+          case 'none':
+            await processMessageNoStreaming(message);
             break;
+          case 'sse':
+            await processMessageSSE(message);
+            break;
+          case 'fetch':
+            await processMessageFetchStreaming(message);
+            break;
+        }
+      });
+      
+      // Add a welcome message to the chat
+      function addWelcomeMessage() {
+        const welcomeDiv = document.createElement('div');
+        welcomeDiv.className = 'message bot-message';
+        welcomeDiv.innerHTML = `
+          <strong>👋 Welcome to the NestJS LangChain Tools Demo!</strong><br><br>
+          This interactive demo showcases various features:<br>
+          • Multi-agent routing for specialized tasks<br>
+          • Tool execution with streaming updates<br>
+          • Timeout handling for long-running operations<br>
+          • Retrieval Augmented Generation (RAG)<br><br>
+          Try the example prompts above or ask any question to get started!
+        `;
+        chatContainer.appendChild(welcomeDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+      
+      // Add a message to the chat
+      function addMessage(text, isUser = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+        messageDiv.textContent = text;
+        chatContainer.appendChild(messageDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        return messageDiv;
+      }
+      
+      // Create a container for tool updates
+      function createToolUpdatesContainer() {
+        // Check if tool updates should be shown
+        if (!document.getElementById('show-tool-updates').checked) {
+          return null;
+        }
+        
+        const container = document.createElement('div');
+        container.className = 'tool-updates';
+        container.innerHTML = '<h4>Tool Execution Updates:</h4>';
+        chatContainer.appendChild(container);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        return container;
+      }
+      
+      // Add a tool update to the container
+      function addToolUpdate(container, update) {
+        // If container is null or tool updates are disabled, just log to console and return
+        if (!container || !document.getElementById('show-tool-updates').checked) {
+          console.log('Tool update (hidden from UI):', update);
+          return;
+        }
+        
+        const { type, toolName, content, progress, error } = update;
+        
+        console.log('Tool update received:', update); // Log to console for debugging
+        
+        // Create the update element
+        const updateDiv = document.createElement('div');
+        updateDiv.className = `tool-update tool-${type}`;
+        updateDiv.setAttribute('data-tool', toolName);
+        
+        // Set content based on update type
+        let updateContent = '';
+        switch (type) {
+          case 'start':
+            updateContent = `▶️ Started: ${toolName} - ${content || ''}`;
+            break;
+          case 'progress':
+            updateContent = `🔄 ${content || 'Processing...'}${progress !== undefined ? ` (${progress}%)` : ''}`;
+            break;
+          case 'complete':
+            updateContent = `✅ Completed: ${toolName} - ${content || ''}`;
+            if (update.result) {
+              updateContent += `\nResult: ${update.result}`;
+            }
+            break;
+          case 'error':
+            updateContent = `❌ Error: ${toolName} - ${error || content || 'An error occurred'}`;
+            break;
+          case 'timeout':
+            updateContent = `⏱️ Timeout: ${toolName} - ${error || content || 'Operation timed out'}`;
+            break;
+        }
+        
+        updateDiv.textContent = updateContent;
+        
+        // Add progress bar if progress is provided or if it's a progress update
+        if ((progress !== undefined || type === 'progress') && type !== 'error') {
+          const progressBar = document.createElement('div');
+          progressBar.className = 'progress-bar';
+          
+          const progressFill = document.createElement('div');
+          progressFill.className = 'progress-fill';
+          progressFill.style.width = `${progress || 0}%`;
+          
+          progressBar.appendChild(progressFill);
+          updateDiv.appendChild(progressBar);
+        }
+        
+        // Either update an existing element or add a new one
+        const existingUpdate = container.querySelector(`.tool-update[data-tool="${toolName}"]`);
+        if (existingUpdate && type === 'progress') {
+          container.replaceChild(updateDiv, existingUpdate);
+        } else {
+          container.appendChild(updateDiv);
+        }
+        
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+      
+      // Show loading indicator
+      function showLoading() {
+        submitBtn.disabled = true;
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading';
+        submitBtn.appendChild(loadingDiv);
+      }
+      
+      // Hide loading indicator
+      function hideLoading() {
+        submitBtn.disabled = false;
+        const loading = submitBtn.querySelector('.loading');
+        if (loading) {
+          loading.remove();
+        }
+      }
+      
+      // Process message without streaming
+      async function processMessageNoStreaming(message) {
+        showLoading();
+        const sessionId = sessionIdInput.value;
+        
+        try {
+          // Clear RAG visualization before new query
+          clearRagVisualization();
+          
+          const response = await fetch('http://localhost:4000/api/chat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Session-ID': sessionId
+            },
+            body: JSON.stringify({ message }),
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Error: ${response.status}`);
           }
           
-          // Decode and process chunks
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n\n');
+          const data = await response.json();
+          addMessage(data.response);
+        } catch (error) {
+          console.error('Error:', error);
+          addMessage(`Error: ${error.message}`);
+        } finally {
+          hideLoading();
+        }
+      }
+      
+      // Process message with SSE
+      async function processMessageSSE(message) {
+        showLoading();
+        const sessionId = sessionIdInput.value;
+        
+        try {
+          // Create bot message container
+          const botMessageDiv = addMessage('', false);
           
-          for (const line of lines) {
-            if (line.startsWith('data:')) {
-              try {
-                const data = JSON.parse(line.substring(5));
-                
-                if (data.token) {
-                  botMessageDiv.textContent += data.token;
-                  chatContainer.scrollTop = chatContainer.scrollHeight;
+          // Create tool updates container
+          const toolUpdatesContainer = createToolUpdatesContainer();
+          
+          // Clear RAG visualization before new query
+          clearRagVisualization();
+          
+          // Create EventSource for SSE endpoint with message and session ID as query parameters
+          const eventSource = new EventSource(
+            `http://localhost:4000/api/chat/sse?message=${encodeURIComponent(message)}&session-id=${encodeURIComponent(sessionId)}`
+          );
+          
+          // Handle incoming messages
+          eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            if (data.token) {
+              botMessageDiv.textContent += data.token;
+              chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+            
+            if (data.toolUpdate) {
+              addToolUpdate(toolUpdatesContainer, data.toolUpdate);
+              
+              // Check if this is a RAG-related tool update
+              if (data.toolUpdate.toolName === 'retrieve_from_knowledge_base' && 
+                  data.toolUpdate.type === 'complete' && 
+                  data.toolUpdate.result) {
+                try {
+                  // Parse the retrieval results and update the visualization
+                  const retrievalResults = JSON.parse(data.toolUpdate.result);
+                  updateRagVisualization(retrievalResults);
+                } catch (e) {
+                  console.error('Error parsing retrieval results:', e);
                 }
-                
-                if (data.toolUpdate) {
-                  addToolUpdate(toolUpdatesContainer, data.toolUpdate);
-                }
-                
-                if (data.done || data.error) {
-                  if (data.error) {
-                    botMessageDiv.textContent += `\nError: ${data.error}`;
+              }
+            }
+            
+            if (data.done || data.error) {
+              eventSource.close();
+              hideLoading();
+              
+              if (data.error) {
+                botMessageDiv.textContent += `\nError: ${data.error}`;
+              }
+            }
+          };
+          
+          // Handle errors
+          eventSource.onerror = (error) => {
+            console.error('SSE Error:', error);
+            eventSource.close();
+            botMessageDiv.textContent += `\nConnection error occurred.`;
+            hideLoading();
+          };
+        } catch (error) {
+          console.error('Error setting up SSE:', error);
+          addMessage(`Error: ${error.message}`);
+          hideLoading();
+        }
+      }
+      
+      // Process message with fetch streaming
+      async function processMessageFetchStreaming(message) {
+        showLoading();
+        const sessionId = sessionIdInput.value;
+        
+        try {
+          // Create bot message container
+          const botMessageDiv = addMessage('', false);
+          
+          // Create tool updates container
+          const toolUpdatesContainer = createToolUpdatesContainer();
+          
+          // Clear RAG visualization before new query
+          clearRagVisualization();
+          
+          const response = await fetch('http://localhost:4000/api/chat/stream', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'text/event-stream',
+              'Session-ID': sessionId
+            },
+            body: JSON.stringify({ message }),
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Error: ${response.status}`);
+          }
+          
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) {
+              break;
+            }
+            
+            // Decode and process chunks
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n\n');
+            
+            for (const line of lines) {
+              if (line.startsWith('data:')) {
+                try {
+                  const data = JSON.parse(line.substring(5));
+                  
+                  if (data.token) {
+                    botMessageDiv.textContent += data.token;
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
                   }
-                  reader.cancel();
-                  break;
+                  
+                  if (data.toolUpdate) {
+                    addToolUpdate(toolUpdatesContainer, data.toolUpdate);
+                    
+                    // Check if this is a RAG-related tool update
+                    if (data.toolUpdate.toolName === 'retrieve_from_knowledge_base' && 
+                        data.toolUpdate.type === 'complete' && 
+                        data.toolUpdate.result) {
+                      try {
+                        // Parse the retrieval results and update the visualization
+                        const retrievalResults = JSON.parse(data.toolUpdate.result);
+                        updateRagVisualization(retrievalResults);
+                      } catch (e) {
+                        console.error('Error parsing retrieval results:', e);
+                      }
+                    }
+                  }
+                  
+                  if (data.done || data.error) {
+                    if (data.error) {
+                      botMessageDiv.textContent += `\nError: ${data.error}`;
+                    }
+                    reader.cancel();
+                    break;
+                  }
+                } catch (e) {
+                  console.error('Error parsing JSON:', e, line);
                 }
-              } catch (e) {
-                console.error('Error parsing JSON:', e, line);
               }
             }
           }
+        } catch (error) {
+          console.error('Error with fetch streaming:', error);
+          addMessage(`Error: ${error.message}`);
+        } finally {
+          hideLoading();
         }
-      } catch (error) {
-        console.error('Error with fetch streaming:', error);
-        addMessage(`Error: ${error.message}`);
-      } finally {
-        hideLoading();
       }
-    }
+      
+      // RAG functions
+      
+      // Clear the RAG visualization container
+      function clearRagVisualization() {
+        ragVizContainer.innerHTML = '<div class="empty-viz-message">Retrieving documents from knowledge base...</div>';
+        ragVizContainer.classList.add('empty-viz');
+      }
+      
+      // Update the RAG visualization with retrieved documents
+      function updateRagVisualization(retrievalResults) {
+        // Clear the container
+        ragVizContainer.innerHTML = '';
+        ragVizContainer.classList.remove('empty-viz');
+        
+        if (!retrievalResults || !retrievalResults.documents || retrievalResults.documents.length === 0) {
+          ragVizContainer.innerHTML = '<div class="empty-viz-message">No relevant documents found in the knowledge base.</div>';
+          ragVizContainer.classList.add('empty-viz');
+          return;
+        }
+        
+        // Add each document to the visualization
+        retrievalResults.documents.forEach((doc, index) => {
+          const documentCard = document.createElement('div');
+          documentCard.className = 'document-card';
+          
+          const score = doc.score ? parseFloat(doc.score).toFixed(2) : 'N/A';
+          const title = doc.metadata?.title || `Document ${index + 1}`;
+          const source = doc.metadata?.source || 'Unknown source';
+          const category = doc.metadata?.category || 'Uncategorized';
+          
+          documentCard.innerHTML = `
+            <div class="document-card-header">
+              <span class="document-title">${title}</span>
+              <span class="document-score">Score: ${score}</span>
+            </div>
+            <div class="document-metadata">
+              Source: ${source} | Category: ${category}
+            </div>
+            <div class="document-content">
+              ${doc.pageContent || doc.content || 'No content available'}
+            </div>
+          `;
+          
+          ragVizContainer.appendChild(documentCard);
+        });
+      }
+      
+      // Handle adding content to knowledge base
+      if (addToKbBtn) {
+        addToKbBtn.addEventListener('click', async () => {
+          const content = ragContent.value.trim();
+          if (!content) {
+            alert('Please enter some content to add to the knowledge base.');
+            return;
+          }
+          
+          const title = ragTitle.value.trim() || 'User Input';
+          
+          addToKbBtn.disabled = true;
+          addToKbBtn.textContent = 'Adding...';
+          
+          try {
+            const response = await fetch('http://localhost:4000/api/chat', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Session-ID': sessionIdInput.value
+              },
+              body: JSON.stringify({
+                message: `Use the add_to_knowledge_base tool to add this content: ${content}, ` + 
+                        `title: ${title}, ` + 
+                        `source: ${ragSource.value || 'User'}, ` + 
+                        `category: ${ragCategory.value}`
+              }),
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Show success message
+            addMessage("I've added your content to the knowledge base!", false);
+            addMessage(data.response, false);
+            
+            // Clear the input fields
+            ragContent.value = '';
+            ragTitle.value = '';
+            ragSource.value = '';
+            
+            // Update KB status
+            const kbStatus = document.getElementById('kb-status');
+            kbStatus.innerHTML += `<p class="kb-update-notification">✅ Added new knowledge: ${title}</p>`;
+            
+            // Auto-scroll to bottom of chat
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+          } catch (error) {
+            console.error('Error adding to knowledge base:', error);
+            addMessage(`Error adding to knowledge base: ${error.message}`, false);
+          } finally {
+            addToKbBtn.disabled = false;
+            addToKbBtn.textContent = 'Add to Knowledge Base';
+          }
+        });
+      } else {
+        console.error('Add to KB button not found in the DOM');
+      }
+    });
   </script>
 </body>
 </html>
