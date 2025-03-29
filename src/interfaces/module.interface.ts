@@ -1,4 +1,5 @@
 import { ModelProvider } from './agent.interface';
+import { VectorStoreOptions } from './vector-store.interface';
 
 /**
  * Configuration options for the LangChainTools module
@@ -24,4 +25,10 @@ export interface LangChainToolsModuleOptions {
   
   /** Callback function when a new token is streamed */
   onToken?: (token: string) => void;
+  
+  /** Vector store configuration for RAG capabilities */
+  vectorStore?: VectorStoreOptions;
+  
+  /** Embedding model to use for document vectorization */
+  embeddingModel?: string;
 }

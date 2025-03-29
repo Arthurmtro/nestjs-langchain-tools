@@ -26,6 +26,32 @@ export enum AgentType {
 }
 
 /**
+ * Options for retrieval augmentation 
+ */
+export interface RetrievalOptions {
+  /** Whether to enable retrieval augmentation for this agent */
+  enabled: boolean;
+  
+  /** Vector store collection/index to use for this agent */
+  collectionName?: string;
+  
+  /** Number of documents to retrieve per query */
+  topK?: number;
+  
+  /** Similarity threshold for retrieved documents */
+  scoreThreshold?: number;
+  
+  /** Whether to include document metadata in prompt */
+  includeMetadata?: boolean;
+  
+  /** Custom template for formatting retrieved documents */
+  documentTemplate?: string;
+  
+  /** Whether to add retrieved content to chat memory */
+  storeRetrievedContext?: boolean;
+}
+
+/**
  * Base configuration for all agent types
  */
 export interface BaseAgentOptions {
@@ -41,6 +67,7 @@ export interface BaseAgentOptions {
   useMemory?: boolean;
   streaming?: boolean;
   onToken?: (token: string) => void;
+  retrieval?: RetrievalOptions;
 }
 
 /**
