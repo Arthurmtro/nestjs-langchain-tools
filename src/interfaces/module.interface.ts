@@ -18,4 +18,10 @@ export interface LangChainToolsModuleOptions {
   
   /** Temperature setting for the coordinator agent */
   coordinatorTemperature?: number;
+  
+  /** Whether to enable streaming by default */
+  enableStreaming?: boolean;
+  
+  /** Callback function when a new token is streamed */
+  onToken?: (token: string) => void;
 }

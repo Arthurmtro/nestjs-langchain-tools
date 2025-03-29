@@ -168,6 +168,14 @@ export class AgentDiscoveryService {
           temperature: options.temperature ?? 0,
           openAIApiKey: options.apiKey,
           configuration: options.apiUrl ? { baseURL: options.apiUrl } : undefined,
+          streaming: options.streaming ?? false,
+          callbacks: options.streaming && options.onToken ? [
+            {
+              handleLLMNewToken(token) {
+                options.onToken?.(token);
+              },
+            },
+          ] : undefined,
         });
       }
 
@@ -177,6 +185,14 @@ export class AgentDiscoveryService {
           modelName: options.modelName || DEFAULT_MODEL_NAMES[ModelProvider.ANTHROPIC],
           temperature: options.temperature ?? 0,
           anthropicApiKey: options.apiKey,
+          streaming: options.streaming ?? false,
+          callbacks: options.streaming && options.onToken ? [
+            {
+              handleLLMNewToken(token) {
+                options.onToken?.(token);
+              },
+            },
+          ] : undefined,
         });
       }
 
@@ -186,6 +202,14 @@ export class AgentDiscoveryService {
           modelName: options.modelName || DEFAULT_MODEL_NAMES[ModelProvider.MISTRAL],
           temperature: options.temperature ?? 0,
           apiKey: options.apiKey,
+          streaming: options.streaming ?? false,
+          callbacks: options.streaming && options.onToken ? [
+            {
+              handleLLMNewToken(token) {
+                options.onToken?.(token);
+              },
+            },
+          ] : undefined,
         });
       }
 
@@ -195,6 +219,14 @@ export class AgentDiscoveryService {
           model: options.modelPath,
           temperature: options.temperature ?? 0,
           ...(options.contextSize ? { context: options.contextSize } : {}),
+          streaming: options.streaming ?? false,
+          callbacks: options.streaming && options.onToken ? [
+            {
+              handleLLMNewToken(token) {
+                options.onToken?.(token);
+              },
+            },
+          ] : undefined,
         });
       }
 

@@ -1,5 +1,18 @@
 
-import { Controller, Get, Post, Body, Logger } from '@nestjs/common';
+import { 
+  Controller, 
+  Get, 
+  Post, 
+  Body, 
+  Logger, 
+  Res, 
+  Sse, 
+  MessageEvent,
+  Headers
+} from '@nestjs/common';
+import { Response } from 'express';
+import { Observable, Subject } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { CoordinatorService } from '../../src/services/coordinator.service';
 
 @Controller('api')
@@ -22,6 +35,107 @@ export class AppController {
     this.logger.log(`Response generated: ${response}`);
     
     return { response };
+  }
+  
+  @Post('chat/stream')
+  async chatStream(
+    @Body() body: { message: string },
+    @Res() res: Response,
+    @Headers('accept') accept: string
+  ): Promise<void> {
+    this.logger.log(`Received streaming chat request: ${JSON.stringify(body)}`);
+    
+    if (!body || typeof body.message !== 'string') {
+      this.logger.error(`Invalid request body: ${JSON.stringify(body)}`);
+      res.status(400).json({ error: 'Invalid request body. Expected {message: string}' });
+      return;
+    }
+    
+    // Check if the client supports event-stream
+    const wantsEventStream = accept && accept.includes('text/event-stream');
+    
+    if (wantsEventStream) {
+      // Set up Server-Sent Events
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      
+      // Handle client disconnect
+      res.on('close', () => {
+        this.logger.log('Client closed connection');
+        res.end();
+      });
+      
+      // Stream the response
+      try {
+        await this.coordinatorService.processMessage(
+          body.message,
+          true, // Enable streaming
+          (token: string) => {
+            res.write(`data: ${JSON.stringify({ token })}\n\n`);
+            // Ensure the data is sent immediately
+            // Some Node.js response implementations have flush
+            if (typeof (res as any).flush === 'function') {
+              (res as any).flush();
+            }
+          }
+        );
+        
+        // Signal completion
+        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+        res.end();
+      } catch (error) {
+        const err = error as Error;
+        this.logger.error(`Streaming error: ${err.message}`);
+        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+        res.end();
+      }
+    } else {
+      // Fall back to regular JSON response for clients that don't support SSE
+      try {
+        const fullResponse = await this.coordinatorService.processMessage(body.message);
+        res.json({ response: fullResponse });
+      } catch (error) {
+        const err = error as Error;
+        this.logger.error(`Error processing message: ${err.message}`);
+        res.status(500).json({ error: err.message });
+      }
+    }
+  }
+  
+  @Sse('chat/sse')
+  chatSSE(@Body() body: { message: string }): Observable<MessageEvent> {
+    this.logger.log(`Received SSE chat request: ${JSON.stringify(body)}`);
+    
+    if (!body || typeof body.message !== 'string') {
+      throw new Error('Invalid request body. Expected {message: string}');
+    }
+    
+    // Create a subject to push tokens to
+    const subject = new Subject<MessageEvent>();
+    
+    // Process the message and stream tokens
+    this.coordinatorService.processMessage(
+      body.message, 
+      true,
+      (token: string) => {
+        subject.next({ data: { token } });
+      }
+    )
+    .then(() => {
+      // Complete the stream when done
+      subject.next({ data: { done: true } });
+      subject.complete();
+    })
+    .catch((error) => {
+      // Handle errors
+      const err = error as Error;
+      this.logger.error(`SSE error: ${err.message}`);
+      subject.next({ data: { error: err.message } });
+      subject.complete();
+    });
+    
+    return subject.asObservable();
   }
 
   @Get('agents')

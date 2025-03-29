@@ -78,16 +78,21 @@ export class CoordinatorService implements OnModuleInit {
       
       // Create the language model
       let model;
+      // Determine if streaming should be enabled
+      const streaming = this.options?.enableStreaming ?? false;
+
       if (modelProvider === ModelProvider.OPENAI) {
         model = new ChatOpenAI({
           modelName,
           temperature,
+          streaming,
         });
       } else {
         this.logger.warn(`Unsupported coordinator model provider: ${modelProvider}, falling back to OpenAI`);
         model = new ChatOpenAI({
           modelName: DEFAULT_COORDINATOR_MODEL,
           temperature: 0,
+          streaming,
         });
       }
 
@@ -174,9 +179,15 @@ export class CoordinatorService implements OnModuleInit {
    * Processes a user message and routes it to the appropriate agent
    * 
    * @param message - The user message to process
+   * @param streaming - Whether to use streaming for this message
+   * @param onToken - Optional callback for token streaming
    * @returns The response from the coordinator or agent
    */
-  async processMessage(message: string): Promise<string> {
+  async processMessage(
+    message: string, 
+    streaming: boolean = false,
+    onToken?: (token: string) => void
+  ): Promise<string> {
     if (!this.initialized || !this.coordinatorAgent) {
       this.logger.warn('Coordinator not initialized yet, initializing now...');
       // Try to initialize synchronously if needed
@@ -190,12 +201,73 @@ export class CoordinatorService implements OnModuleInit {
     
     try {
       this.logger.log(`Processing message: ${this.truncateLog(message)}`);
+      
+      // Use streaming if requested
+      if (streaming) {
+        return await this.processMessageStreaming(message, onToken);
+      }
+      
+      // Otherwise use standard processing
       const result = await this.coordinatorAgent.invoke({ input: message });
       return result.output as string;
     } catch (error) {
       const err = error as Error;
       this.logger.error('Error processing message:', err.stack);
       throw new Error(`Error processing message: ${err.message}`);
+    }
+  }
+  
+  /**
+   * Processes a user message with streaming responses
+   * 
+   * @param message - The user message to process 
+   * @param onToken - Optional callback for token streaming
+   * @returns The complete response string
+   */
+  private async processMessageStreaming(
+    message: string,
+    onToken?: (token: string) => void
+  ): Promise<string> {
+    if (!this.coordinatorAgent) {
+      throw new Error('Coordinator agent not initialized');
+    }
+    
+    try {
+      this.logger.log(`Processing message with streaming: ${this.truncateLog(message)}`);
+      
+      // Create a variable to collect the complete response
+      let fullResponse = '';
+      
+      // Use the streaming interface from langchain
+      const stream = await this.coordinatorAgent.streamLog({ input: message });
+      
+      for await (const chunk of stream) {
+        if (chunk.ops?.length && chunk.ops[0].op === 'add') {
+          const addOp = chunk.ops[0];
+          if (
+            addOp.path.startsWith('/logs/ChatOpenAI') && 
+            typeof addOp.value === 'string' && 
+            addOp.value.length > 0
+          ) {
+            // Extract the token from the stream
+            const token = addOp.value;
+            
+            // Append to the full response
+            fullResponse += token;
+            
+            // Call the token callback if provided
+            if (onToken) {
+              onToken(token);
+            }
+          }
+        }
+      }
+      
+      return fullResponse;
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error('Error processing streaming message:', err.stack);
+      throw new Error(`Error processing streaming message: ${err.message}`);
     }
   }
 

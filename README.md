@@ -13,6 +13,7 @@ A powerful NestJS module for seamless integration with LangChain tools and agent
 - **Provider Agnostic** - Works with OpenAI, Anthropic, Mistral, and more
 - **Memory Support** - Optional conversation memory for stateful interactions
 - **Type-Safe** - Uses TypeScript and Zod schemas for robust type safety
+- **Streaming Support** - Real-time token streaming with SSE
 
 ## 📦 Installation
 
@@ -44,6 +45,8 @@ import { LangChainToolsModule } from 'nestjs-langchain-tools';
         
         {input}
       `,
+      // Enable streaming support
+      enableStreaming: true,
     }),
   ],
 })
@@ -208,6 +211,56 @@ Check out the complete example in the `/test/example-app` directory:
 - Weather Agent with forecast tools
 - Travel Agent with hotel and attraction tools
 - Coordinator that routes questions to the right agent
+- Streaming demo with SSE and fetch API
+
+### Using Streaming Responses
+
+The package supports real-time streaming responses through Server-Sent Events (SSE). Here's how to set it up in your controller:
+
+```typescript
+import { Controller, Post, Body, Sse, Res } from '@nestjs/common';
+import { Response } from 'express';
+import { Observable, Subject } from 'rxjs';
+import { CoordinatorService } from 'nestjs-langchain-tools';
+
+@Controller('api')
+export class YourController {
+  constructor(private readonly coordinatorService: CoordinatorService) {}
+
+  // Traditional endpoint returning complete response
+  @Post('chat')
+  async chat(@Body() body: { message: string }): Promise<{ response: string }> {
+    const response = await this.coordinatorService.processMessage(body.message);
+    return { response };
+  }
+
+  // Server-Sent Events streaming endpoint
+  @Sse('chat/sse')
+  chatSSE(@Body() body: { message: string }): Observable<MessageEvent> {
+    const subject = new Subject<MessageEvent>();
+    
+    this.coordinatorService.processMessage(
+      body.message, 
+      true, // Enable streaming
+      (token: string) => {
+        subject.next({ data: { token } });
+      }
+    )
+    .then(() => {
+      subject.next({ data: { done: true } });
+      subject.complete();
+    })
+    .catch((error) => {
+      subject.next({ data: { error: error.message } });
+      subject.complete();
+    });
+    
+    return subject.asObservable();
+  }
+}
+```
+
+Check out the complete streaming demo in `/test/example-app/streaming-demo.html` for frontend implementation examples.
 
 ## 🔄 CI/CD Process
 

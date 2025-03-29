@@ -39,6 +39,8 @@ export interface BaseAgentOptions {
   handleParsingErrors?: boolean | string;
   handleParsingErrorMessage?: string;
   useMemory?: boolean;
+  streaming?: boolean;
+  onToken?: (token: string) => void;
 }
 
 /**

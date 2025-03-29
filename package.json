@@ -68,6 +68,7 @@
   "devDependencies": {
     "@nestjs/platform-express": "^11.0.12",
     "@nestjs/testing": "^11.0.12",
+    "@types/express": "^5.0.1",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.14",
     "dotenv": "^16.4.7",

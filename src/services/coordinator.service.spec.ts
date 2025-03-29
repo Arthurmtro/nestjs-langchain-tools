@@ -117,5 +117,49 @@ describe('CoordinatorService', () => {
       
       await expect(service.processMessage('Test request')).rejects.toThrow('Error processing message: Test error');
     });
+    
+    it('should handle streaming mode when requested', async () => {
+      // Setup mock for streaming
+      (service as any).initialized = true;
+      (service as any).coordinatorAgent = {
+        streamLog: jest.fn().mockImplementation(async function* () {
+          yield { 
+            ops: [{ op: 'add', path: '/logs/ChatOpenAI', value: 'Hello ' }] 
+          };
+          yield { 
+            ops: [{ op: 'add', path: '/logs/ChatOpenAI', value: 'world!' }] 
+          };
+        })
+      };
+      
+      // Mock callback to track tokens
+      const tokens: string[] = [];
+      const onToken = (token: string) => {
+        tokens.push(token);
+      };
+      
+      // Call with streaming mode
+      const result = await service.processMessage('Test request', true, onToken);
+      
+      // Verify results
+      expect(result).toBe('Hello world!');
+      expect(tokens).toEqual(['Hello ', 'world!']);
+    });
+    
+    it('should handle errors during streaming', async () => {
+      // Setup mock for streaming that throws error
+      (service as any).initialized = true;
+      (service as any).coordinatorAgent = {
+        streamLog: jest.fn().mockImplementation(async function* () {
+          yield { 
+            ops: [{ op: 'add', path: '/logs/ChatOpenAI', value: 'Start ' }] 
+          };
+          throw new Error('Streaming error');
+        })
+      };
+      
+      // Call with streaming mode
+      await expect(service.processMessage('Test request', true)).rejects.toThrow('Error processing streaming message: Streaming error');
+    });
   });
 });
