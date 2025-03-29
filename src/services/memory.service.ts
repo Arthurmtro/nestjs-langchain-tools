@@ -93,6 +93,10 @@ class SessionMemoryAdapter extends BaseChatMemory {
     private readonly sessionId: string = 'default',
   ) {
     super();
+    // Set input and output keys
+    this.inputKey = "input";
+    this.outputKey = "output";
+    
     this.chatHistory = new ChatMessageHistory();
     
     // Pre-populate the chat history with existing messages
@@ -110,6 +114,31 @@ class SessionMemoryAdapter extends BaseChatMemory {
   async loadMemoryVariables(): Promise<Record<string, any>> {
     const messages = await this.chatHistory.getMessages();
     return { [this.memoryKeyName]: messages };
+  }
+  
+  /**
+   * Override saveContext to update our memory service
+   */
+  async saveContext(inputValues: Record<string, any>, outputValues: Record<string, any>): Promise<void> {
+    // Ensure we have input and output keys
+    const inputKey = this.inputKey || "input";
+    const outputKey = this.outputKey || "output";
+    
+    // Get the input and output values
+    const input = inputValues[inputKey];
+    const output = outputValues[outputKey];
+    
+    // First save using the parent class method
+    await super.saveContext(inputValues, outputValues);
+    
+    // Then update our memory service
+    if (typeof input === 'string') {
+      this.memoryService.addHumanMessage(input, this.sessionId);
+    }
+    
+    if (typeof output === 'string') {
+      this.memoryService.addAIMessage(output, this.sessionId);
+    }
   }
   
   /**

@@ -206,9 +206,6 @@ export class CoordinatorService implements OnModuleInit {
     try {
       this.logger.log(`Processing message: ${this.truncateLog(message)} (session: ${sessionId})`);
       
-      // Add the message to memory
-      this.memoryService.addHumanMessage(message, sessionId);
-      
       // Create a memory instance for this session
       const memory = this.memoryService.getChatMemoryForSession(sessionId);
       
@@ -218,15 +215,12 @@ export class CoordinatorService implements OnModuleInit {
       // Use streaming if requested
       let response: string;
       if (streaming) {
-        response = await this.processMessageStreaming(message, onToken);
+        response = await this.processMessageStreaming(message, onToken, sessionId);
       } else {
         // Otherwise use standard processing
         const result = await this.coordinatorAgent.invoke({ input: message });
         response = result.output as string;
       }
-      
-      // Add the response to memory
-      this.memoryService.addAIMessage(response, sessionId);
       
       return response;
     } catch (error) {
@@ -241,18 +235,20 @@ export class CoordinatorService implements OnModuleInit {
    * 
    * @param message - The user message to process 
    * @param onToken - Optional callback for token streaming
+   * @param sessionId - Session identifier for memory management
    * @returns The complete response string
    */
   private async processMessageStreaming(
     message: string,
-    onToken?: (token: string) => void
+    onToken?: (token: string) => void,
+    sessionId: string = 'default'
   ): Promise<string> {
     if (!this.coordinatorAgent) {
       throw new Error('Coordinator agent not initialized');
     }
     
     try {
-      this.logger.log(`Processing message with streaming: ${this.truncateLog(message)}`);
+      this.logger.log(`Processing message with streaming: ${this.truncateLog(message)} (session: ${sessionId})`);
       
       // Create a variable to collect the complete response
       let fullResponse = '';
@@ -280,6 +276,15 @@ export class CoordinatorService implements OnModuleInit {
             }
           }
         }
+      }
+      
+      // After streaming, we need to manually save to memory
+      // as the invoke method would normally handle this
+      if (this.coordinatorAgent.memory) {
+        await this.coordinatorAgent.memory.saveContext(
+          { input: message },
+          { output: fullResponse }
+        );
       }
       
       return fullResponse;
