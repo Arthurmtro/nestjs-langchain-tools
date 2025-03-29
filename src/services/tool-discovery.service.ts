@@ -67,7 +67,7 @@ export class ToolDiscoveryService {
         instance,
         prototype,
         (methodName: string) => {
-          const method = (instance as Record<string, Function>)[methodName];
+          const method = (instance as Record<string, (...args: any[]) => any>)[methodName];
           if (!method) return;
 
           const toolMetadata: ToolOptions | undefined = this.reflector.get(
