@@ -135,8 +135,11 @@ export class ToolTimeoutService {
       throw new ToolTimeoutError(toolName, timeoutMs);
     }
     
+    // Create a variable to hold the timeout ID
+    let timeoutId: NodeJS.Timeout;
+    
     const timeoutPromise = new Promise<never>((_, reject) => {
-      const timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         const error = new ToolTimeoutError(toolName, timeoutMs);
         
         // Log the timeout
@@ -158,13 +161,12 @@ export class ToolTimeoutService {
         
         reject(error);
       }, timeoutMs);
-
-      // Make sure to clear timeout if the promise resolves
-      // This is stored in the promise to ensure it's cleared if needed
-      (timeoutPromise as any).clearTimeout = () => {
-        clearTimeout(timeoutId);
-      };
     });
+    
+    // Attach the clearTimeout function to the promise
+    (timeoutPromise as any).clearTimeout = () => {
+      clearTimeout(timeoutId);
+    };
 
     try {
       // Race between the function and the timeout
