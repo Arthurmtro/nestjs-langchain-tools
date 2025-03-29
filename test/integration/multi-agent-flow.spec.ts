@@ -4,6 +4,7 @@ import { CoordinatorService } from '../../src/services/coordinator.service';
 import { AgentDiscoveryService } from '../../src/services/agent-discovery.service';
 import { ToolDiscoveryService } from '../../src/services/tool-discovery.service';
 import { MemoryService } from '../../src/services/memory.service';
+import { VectorStoreService } from '../../src/services/vector-store.service';
 import { DiscoveryModule, DiscoveryService, Reflector } from '@nestjs/core';
 import { ModelProvider, ToolsAgent } from '../../src/decorators/agent.decorator';
 import { AgentTool } from '../../src/decorators/tool.decorator';
@@ -88,10 +89,10 @@ class TravelAgent {
     ToolDiscoveryService,
     {
       provide: AgentDiscoveryService,
-      useFactory: (discoveryService, toolDiscoveryService, reflector) => {
-        return new AgentDiscoveryService(discoveryService, toolDiscoveryService, reflector);
+      useFactory: (discoveryService, toolDiscoveryService, reflector, vectorStoreService) => {
+        return new AgentDiscoveryService(discoveryService, toolDiscoveryService, reflector, vectorStoreService);
       },
-      inject: [DiscoveryService, ToolDiscoveryService, Reflector]
+      inject: [DiscoveryService, ToolDiscoveryService, Reflector, VectorStoreService]
     },
     {
       provide: LANGCHAIN_TOOLS_OPTIONS,
@@ -101,6 +102,7 @@ class TravelAgent {
     },
     CoordinatorService,
     MemoryService,
+    VectorStoreService,
     WeatherAgent,
     TravelAgent,
   ],
