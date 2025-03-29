@@ -1,12 +1,12 @@
 
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Body, 
-  Logger, 
-  Res, 
-  Sse, 
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Logger,
+  Res,
+  Sse,
   MessageEvent,
   Headers,
   Query
@@ -19,8 +19,27 @@ import { CoordinatorService } from '../../src/services/coordinator.service';
 @Controller('api')
 export class AppController {
   private readonly logger = new Logger(AppController.name);
-  
+  // Using a simple in-memory store for conversations
+  // In a production app, you would use Redis or another persistent store
+  private readonly conversations = new Map<string, string[]>();
+
   constructor(private readonly coordinatorService: CoordinatorService) {}
+
+  // Helper to get or create a conversation for a session
+  private getOrCreateConversation(sessionId: string = 'default'): string[] {
+    if (!this.conversations.has(sessionId)) {
+      this.conversations.set(sessionId, []);
+    }
+    return this.conversations.get(sessionId)!;
+  }
+
+  // Helper to add a message to a conversation and return the session ID
+  private addMessageToConversation(message: string, sessionId: string = 'default'): string {
+    const conversation = this.getOrCreateConversation(sessionId);
+    conversation.push(message);
+    this.logger.log(`Session ${sessionId} history: ${conversation.length} messages`);
+    return sessionId;
+  }
 
   @Post('chat')
   async chat(
@@ -28,24 +47,30 @@ export class AppController {
     @Headers('session-id') sessionId?: string
   ): Promise<{ response: string }> {
     this.logger.log(`Received chat request: ${JSON.stringify(body)}, sessionId: ${sessionId || 'default'}`);
-    
+
     if (!body || typeof body.message !== 'string') {
       this.logger.error(`Invalid request body: ${JSON.stringify(body)}`);
       throw new Error('Invalid request body. Expected {message: string}');
     }
-    
+
+    // Add to conversation history
+    this.addMessageToConversation(body.message, sessionId);
+
     this.logger.log(`Processing message: ${body.message}`);
     const response = await this.coordinatorService.processMessage(
-      body.message, 
-      false, 
-      undefined, 
+      body.message,
+      false,
+      undefined,
       sessionId
     );
     this.logger.log(`Response generated: ${response}`);
-    
+
+    // Add the response to conversation history too
+    this.addMessageToConversation(response, sessionId);
+
     return { response };
   }
-  
+
   @Post('chat/stream')
   async chatStream(
     @Body() body: { message: string },
@@ -54,34 +79,40 @@ export class AppController {
     @Headers('session-id') sessionId?: string
   ): Promise<void> {
     this.logger.log(`Received streaming chat request: ${JSON.stringify(body)}, sessionId: ${sessionId || 'default'}`);
-    
+
     if (!body || typeof body.message !== 'string') {
       this.logger.error(`Invalid request body: ${JSON.stringify(body)}`);
       res.status(400).json({ error: 'Invalid request body. Expected {message: string}' });
       return;
     }
-    
+
+    // Add to conversation history
+    this.addMessageToConversation(body.message, sessionId);
+
     // Check if the client supports event-stream
     const wantsEventStream = accept && accept.includes('text/event-stream');
-    
+
     if (wantsEventStream) {
       // Set up Server-Sent Events
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      
+
       // Handle client disconnect
       res.on('close', () => {
         this.logger.log('Client closed connection');
         res.end();
       });
-      
+
+      let fullResponse = '';
+
       // Stream the response
       try {
         await this.coordinatorService.processMessage(
           body.message,
           true, // Enable streaming
           (token: string) => {
+            fullResponse += token;
             res.write(`data: ${JSON.stringify({ token })}\n\n`);
             // Ensure the data is sent immediately
             // Some Node.js response implementations have flush
@@ -91,7 +122,10 @@ export class AppController {
           },
           sessionId
         );
-        
+
+        // Add the complete response to conversation history
+        this.addMessageToConversation(fullResponse, sessionId);
+
         // Signal completion
         res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
         res.end();
@@ -104,12 +138,11 @@ export class AppController {
     } else {
       // Fall back to regular JSON response for clients that don't support SSE
       try {
-        const fullResponse = await this.coordinatorService.processMessage(
-          body.message,
-          false,
-          undefined,
-          sessionId
-        );
+        const fullResponse = await this.coordinatorService.processMessage(body.message);
+
+        // Add the response to conversation history
+        this.addMessageToConversation(fullResponse, sessionId);
+
         res.json({ response: fullResponse });
       } catch (error) {
         const err = error as Error;
@@ -118,36 +151,45 @@ export class AppController {
       }
     }
   }
-  
+
   @Sse('chat/sse')
   chatSSE(
-    @Headers('message') headerMessage: string, 
+    @Headers('message') headerMessage: string,
     @Query('message') queryMessage: string,
-    @Headers('session-id') headerSessionId?: string,
+    @Headers('session-id') sessionId?: string,
     @Query('session-id') querySessionId?: string
   ): Observable<MessageEvent> {
     const message = queryMessage || headerMessage;
-    const sessionId = querySessionId || headerSessionId || 'default';
-    
-    this.logger.log(`Received SSE chat request: message=${message}, sessionId=${sessionId}`);
-    
+    const session = querySessionId || sessionId || 'default';
+
+    this.logger.log(`Received SSE chat request: message=${message}, sessionId=${session}`);
+
     if (!message) {
       throw new Error('Message is required. Pass it as a query parameter: ?message=your_message');
     }
-    
+
+    // Add to conversation history
+    this.addMessageToConversation(message, session);
+
     // Create a subject to push tokens to
     const subject = new Subject<MessageEvent>();
-    
+
+    let fullResponse = '';
+
     // Process the message and stream tokens
     this.coordinatorService.processMessage(
-      message, 
+      message,
       true,
       (token: string) => {
+        fullResponse += token;
         subject.next({ data: { token } });
       },
       sessionId
     )
     .then(() => {
+      // Add the complete response to conversation history
+      this.addMessageToConversation(fullResponse, session);
+
       // Complete the stream when done
       subject.next({ data: { done: true } });
       subject.complete();
@@ -159,7 +201,7 @@ export class AppController {
       subject.next({ data: { error: err.message } });
       subject.complete();
     });
-    
+
     return subject.asObservable();
   }
 
