@@ -212,7 +212,7 @@
         // Create bot message container
         const botMessageDiv = addMessage('', false);
         
-        // Create EventSource for SSE endpoint
+        // Create EventSource for SSE endpoint with message as query parameter
         const eventSource = new EventSource(`http://localhost:4000/api/chat/sse?message=${encodeURIComponent(message)}`);
         
         // Handle incoming messages

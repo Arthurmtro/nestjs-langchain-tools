@@ -8,7 +8,8 @@ import {
   Res, 
   Sse, 
   MessageEvent,
-  Headers
+  Headers,
+  Query
 } from '@nestjs/common';
 import { Response } from 'express';
 import { Observable, Subject } from 'rxjs';
@@ -104,11 +105,12 @@ export class AppController {
   }
   
   @Sse('chat/sse')
-  chatSSE(@Body() body: { message: string }): Observable<MessageEvent> {
-    this.logger.log(`Received SSE chat request: ${JSON.stringify(body)}`);
+  chatSSE(@Headers('message') headerMessage: string, @Query('message') queryMessage: string): Observable<MessageEvent> {
+    const message = queryMessage || headerMessage;
+    this.logger.log(`Received SSE chat request: message=${message}`);
     
-    if (!body || typeof body.message !== 'string') {
-      throw new Error('Invalid request body. Expected {message: string}');
+    if (!message) {
+      throw new Error('Message is required. Pass it as a query parameter: ?message=your_message');
     }
     
     // Create a subject to push tokens to
@@ -116,7 +118,7 @@ export class AppController {
     
     // Process the message and stream tokens
     this.coordinatorService.processMessage(
-      body.message, 
+      message, 
       true,
       (token: string) => {
         subject.next({ data: { token } });

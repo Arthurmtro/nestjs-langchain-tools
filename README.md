@@ -236,11 +236,17 @@ export class YourController {
 
   // Server-Sent Events streaming endpoint
   @Sse('chat/sse')
-  chatSSE(@Body() body: { message: string }): Observable<MessageEvent> {
+  chatSSE(@Query('message') message: string): Observable<MessageEvent> {
     const subject = new Subject<MessageEvent>();
     
+    if (!message) {
+      subject.next({ data: { error: 'Message parameter is required' } });
+      subject.complete();
+      return subject.asObservable();
+    }
+    
     this.coordinatorService.processMessage(
-      body.message, 
+      message, 
       true, // Enable streaming
       (token: string) => {
         subject.next({ data: { token } });
@@ -261,6 +267,27 @@ export class YourController {
 ```
 
 Check out the complete streaming demo in `/test/example-app/streaming-demo.html` for frontend implementation examples.
+
+### Command-line Testing with curl
+
+You can also test the streaming endpoints from the command line:
+
+```bash
+# Standard endpoint
+curl -X POST http://localhost:4000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"What is the weather in Paris?"}'
+
+# SSE streaming endpoint (note that message is passed as a query parameter)
+curl -N -H "Accept: text/event-stream" \
+  "http://localhost:4000/api/chat/sse?message=What%20is%20the%20weather%20in%20Paris?"
+
+# Fetch streaming endpoint
+curl -X POST http://localhost:4000/api/chat/stream \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{"message":"What is the weather in Paris?"}'
+```
 
 ## 🔄 CI/CD Process
 
