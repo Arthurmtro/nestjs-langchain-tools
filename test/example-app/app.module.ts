@@ -7,7 +7,9 @@ import { AppController } from './app.controller';
 @Module({
   imports: [
     LangChainToolsModule.forRoot({
-      coordinatorPrompt: `You are a travel planning assistant. You have access to specialized agents for weather and travel information. Route questions to the appropriate agent.`,
+      coordinatorPrompt: `You are a travel planning assistant. You have access to specialized agents for weather and travel information. Route questions to the appropriate agent. Remember previous questions and context from the conversation.`,
+      enableStreaming: true,
+      coordinatorUseMemory: true,
     }),
   ],
   controllers: [AppController],

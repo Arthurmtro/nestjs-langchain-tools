@@ -12,6 +12,14 @@
       padding: 20px;
       line-height: 1.6;
     }
+    
+    .session-id {
+      margin-top: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
     h1 {
       color: #333;
       text-align: center;
@@ -109,6 +117,12 @@
       </div>
     </div>
     
+    <div class="session-id">
+      <label for="session-id">Session ID:</label>
+      <input type="text" id="session-id" value="default">
+      <button type="button" id="new-session">New Session</button>
+    </div>
+    
     <div class="chat-container" id="chat-container"></div>
     
     <form id="chat-form">
@@ -122,6 +136,15 @@
     const chatForm = document.getElementById('chat-form');
     const messageInput = document.getElementById('message-input');
     const submitBtn = document.getElementById('submit-btn');
+    const sessionIdInput = document.getElementById('session-id');
+    const newSessionBtn = document.getElementById('new-session');
+    
+    // Generate a new random session ID
+    newSessionBtn.addEventListener('click', () => {
+      const randomId = 'session_' + Math.random().toString(36).substring(2, 10);
+      sessionIdInput.value = randomId;
+      chatContainer.innerHTML = ''; // Clear chat for new session
+    });
     
     // Add a message to the chat
     function addMessage(text, isUser = false) {
@@ -180,12 +203,14 @@
     // Process message without streaming
     async function processMessageNoStreaming(message) {
       showLoading();
+      const sessionId = sessionIdInput.value;
       
       try {
         const response = await fetch('http://localhost:4000/api/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Session-ID': sessionId
           },
           body: JSON.stringify({ message }),
         });
@@ -207,13 +232,16 @@
     // Process message with SSE
     async function processMessageSSE(message) {
       showLoading();
+      const sessionId = sessionIdInput.value;
       
       try {
         // Create bot message container
         const botMessageDiv = addMessage('', false);
         
-        // Create EventSource for SSE endpoint with message as query parameter
-        const eventSource = new EventSource(`http://localhost:4000/api/chat/sse?message=${encodeURIComponent(message)}`);
+        // Create EventSource for SSE endpoint with message and session ID as query parameters
+        const eventSource = new EventSource(
+          `http://localhost:4000/api/chat/sse?message=${encodeURIComponent(message)}&session-id=${encodeURIComponent(sessionId)}`
+        );
         
         // Handle incoming messages
         eventSource.onmessage = (event) => {
@@ -251,6 +279,7 @@
     // Process message with fetch streaming
     async function processMessageFetchStreaming(message) {
       showLoading();
+      const sessionId = sessionIdInput.value;
       
       try {
         // Create bot message container
@@ -261,6 +290,7 @@
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'text/event-stream',
+            'Session-ID': sessionId
           },
           body: JSON.stringify({ message }),
         });
