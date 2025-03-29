@@ -3,172 +3,357 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NestJS LangChain Tools - Streaming Demo</title>
+  <title>NestJS LangChain Tools - Interactive Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --dark-teal: #1C3C3B;
+      --soft-peach: #F3CCBD;
+      --bright-red: #E0234F;
+      --dark-teal-lighter: #2a5654;
+      --dark-teal-darker: #142a29;
+      --soft-peach-lighter: #f9e6df;
+      --soft-peach-darker: #e6b3a0;
+      --white: #ffffff;
+      --light-gray: #f0f0f0;
+      --gray: #888888;
+      --dark-gray: #484848;
+      --border-radius: 8px;
+      --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      max-width: 800px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      max-width: 900px;
       margin: 0 auto;
       padding: 20px;
       line-height: 1.6;
+      background-color: var(--light-gray);
+      color: var(--dark-gray);
     }
     
+    h1 {
+      color: var(--dark-teal);
+      text-align: center;
+      font-weight: 600;
+      margin-bottom: 30px;
+      letter-spacing: -0.5px;
+    }
+    
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      background-color: var(--white);
+      border-radius: var(--border-radius);
+      padding: 24px;
+      box-shadow: var(--box-shadow);
+    }
+    
+    /* Options container */
+    .options-container {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-bottom: 15px;
+      border: 1px solid var(--soft-peach);
+      border-radius: var(--border-radius);
+      padding: 15px;
+      background-color: var(--soft-peach-lighter);
+    }
+    
+    .streaming-options {
+      display: flex;
+      gap: 20px;
+    }
+    
+    .streaming-option {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    .tool-updates-toggle {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    /* Custom radio and checkbox styles */
+    input[type="radio"], input[type="checkbox"] {
+      accent-color: var(--dark-teal);
+    }
+    
+    /* Session ID */
     .session-id {
       margin-top: 10px;
       margin-bottom: 20px;
       display: flex;
       align-items: center;
       gap: 10px;
+      padding: 10px;
+      border-radius: var(--border-radius);
+      background-color: var(--light-gray);
     }
-    h1 {
-      color: #333;
-      text-align: center;
+    
+    .session-id input {
+      flex: 1;
+      max-width: 200px;
+      border: 1px solid var(--soft-peach-darker);
     }
-    .container {
+    
+    /* Example prompts */
+    .example-prompts {
+      border: 1px solid var(--soft-peach);
+      border-radius: var(--border-radius);
+      background-color: var(--white);
+      margin-bottom: 15px;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    
+    .example-prompts-header {
+      padding: 12px 15px;
       display: flex;
-      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      background-color: var(--dark-teal);
+      color: var(--white);
+      font-weight: 500;
+    }
+    
+    .example-prompts-header button {
+      background-color: var(--dark-teal-lighter);
+      font-size: 0.85rem;
+      padding: 6px 12px;
+    }
+    
+    .example-prompts-content {
+      padding: 15px;
+      display: flex;
+      flex-wrap: wrap;
       gap: 20px;
     }
+    
+    .prompt-category {
+      flex: 1;
+      min-width: 200px;
+    }
+    
+    .prompt-category h3 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 1rem;
+      color: var(--dark-teal);
+      font-weight: 600;
+      border-bottom: 2px solid var(--soft-peach);
+      padding-bottom: 5px;
+    }
+    
+    .example-prompt {
+      display: block;
+      width: 100%;
+      text-align: left;
+      margin-bottom: 8px;
+      padding: 10px 12px;
+      background-color: var(--soft-peach-lighter);
+      border: 1px solid var(--soft-peach);
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+      color: var(--dark-teal-darker);
+      font-weight: 500;
+    }
+    
+    .example-prompt:hover {
+      background-color: var(--soft-peach);
+      transform: translateY(-2px);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      color: var(--dark-teal);
+    }
+    
+    /* Chat container */
     .chat-container {
-      border: 1px solid #ccc;
-      border-radius: 5px;
+      border: 1px solid var(--soft-peach);
+      border-radius: var(--border-radius);
       padding: 20px;
       height: 400px;
       overflow-y: auto;
-      background-color: #f9f9f9;
+      background-color: var(--light-gray);
     }
+    
     .message {
-      margin-bottom: 10px;
-      padding: 10px;
-      border-radius: 5px;
+      margin-bottom: 15px;
+      padding: 12px;
+      border-radius: var(--border-radius);
       max-width: 80%;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
+    
     .user-message {
-      background-color: #e3f2fd;
+      background-color: var(--dark-teal);
+      color: var(--white);
       margin-left: auto;
       text-align: right;
     }
+    
     .bot-message {
-      background-color: #fff;
-      border: 1px solid #eee;
+      background-color: var(--white);
+      border: 1px solid var(--soft-peach-lighter);
     }
+    
+    /* Form elements */
     form {
       display: flex;
       gap: 10px;
+      margin-top: 15px;
     }
+    
     input {
       flex: 1;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
+      padding: 12px 15px;
+      border: 2px solid var(--soft-peach);
+      border-radius: var(--border-radius);
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      transition: border-color 0.3s;
     }
+    
+    input:focus {
+      outline: none;
+      border-color: var(--dark-teal);
+    }
+    
     button {
-      padding: 10px 15px;
-      background-color: #2196f3;
+      padding: 12px 20px;
+      background-color: var(--dark-teal);
       color: white;
       border: none;
-      border-radius: 5px;
+      border-radius: var(--border-radius);
       cursor: pointer;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      transition: background-color 0.3s, transform 0.2s;
     }
+    
     button:hover {
-      background-color: #0b7dda;
+      background-color: var(--dark-teal-lighter);
+      transform: translateY(-2px);
     }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
     .loading {
       display: inline-block;
       width: 20px;
       height: 20px;
-      border: 3px solid rgba(0, 0, 0, 0.1);
+      border: 3px solid rgba(255, 255, 255, 0.3);
       border-radius: 50%;
-      border-top-color: #2196f3;
+      border-top-color: var(--white);
       animation: spin 1s ease-in-out infinite;
       margin-left: 10px;
     }
+    
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
     
     /* Tool update styles */
     .tool-updates {
-      margin-top: 10px;
-      margin-bottom: 10px;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-      padding: 10px;
-      background-color: #f8f9fa;
+      margin-top: 15px;
+      margin-bottom: 15px;
+      border: 1px solid var(--soft-peach);
+      border-radius: var(--border-radius);
+      padding: 15px;
+      background-color: var(--white);
     }
+    
+    .tool-updates h4 {
+      margin-top: 0;
+      color: var(--dark-teal);
+      font-weight: 600;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--soft-peach-lighter);
+      padding-bottom: 8px;
+    }
+    
     .tool-update {
-      margin-bottom: 5px;
-      padding: 5px;
-      border-radius: 3px;
+      margin-bottom: 8px;
+      padding: 10px;
+      border-radius: var(--border-radius);
+      font-size: 0.9rem;
     }
+    
     .tool-start {
-      background-color: #e3f2fd;
+      background-color: var(--soft-peach-lighter);
+      border-left: 3px solid var(--soft-peach);
     }
+    
     .tool-progress {
-      background-color: #e8f5e9;
+      background-color: var(--soft-peach-lighter);
+      border-left: 3px solid var(--dark-teal-lighter);
     }
+    
     .tool-complete {
-      background-color: #e0f7fa;
+      background-color: #e8f5e9;
+      border-left: 3px solid #4caf50;
     }
+    
     .tool-error {
       background-color: #ffebee;
+      border-left: 3px solid var(--bright-red);
     }
+    
     .tool-timeout {
-      background-color: #fce4ec;
-      border-left: 4px solid #e91e63;
+      background-color: #fff8e1;
+      border-left: 3px solid #ffc107;
     }
+    
     .progress-bar {
       height: 8px;
-      background-color: #ddd;
+      background-color: var(--light-gray);
       border-radius: 4px;
-      margin-top: 5px;
+      margin-top: 8px;
       overflow: hidden;
     }
+    
     .progress-fill {
       height: 100%;
-      background-color: #4caf50;
+      background-color: var(--dark-teal);
       width: 0%;
       transition: width 0.3s ease;
-    }
-    .streaming-options {
-      display: flex;
-      gap: 20px;
-      margin-bottom: 10px;
-    }
-    .streaming-option {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .session-id {
-      margin-top: 10px;
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .session-id input {
-      flex: 1;
-      max-width: 200px;
     }
   </style>
 </head>
 <body>
-  <h1>NestJS LangChain Tools - Streaming Demo</h1>
+  <h1>NestJS LangChain Tools <span style="color: var(--bright-red);">Interactive Demo</span></h1>
   
   <div class="container">
-    <div class="streaming-options">
-      <div class="streaming-option">
-        <input type="radio" id="no-stream" name="stream-type" value="none" checked>
-        <label for="no-stream">No Streaming</label>
+    <div class="options-container">
+      <div class="streaming-options">
+        <div class="streaming-option">
+          <input type="radio" id="no-stream" name="stream-type" value="none" checked>
+          <label for="no-stream">No Streaming</label>
+        </div>
+        <div class="streaming-option">
+          <input type="radio" id="sse-stream" name="stream-type" value="sse">
+          <label for="sse-stream">SSE Streaming</label>
+        </div>
+        <div class="streaming-option">
+          <input type="radio" id="fetch-stream" name="stream-type" value="fetch">
+          <label for="fetch-stream">Fetch Streaming</label>
+        </div>
       </div>
-      <div class="streaming-option">
-        <input type="radio" id="sse-stream" name="stream-type" value="sse">
-        <label for="sse-stream">SSE Streaming</label>
-      </div>
-      <div class="streaming-option">
-        <input type="radio" id="fetch-stream" name="stream-type" value="fetch">
-        <label for="fetch-stream">Fetch Streaming</label>
+      
+      <div class="tool-updates-toggle">
+        <input type="checkbox" id="show-tool-updates" checked>
+        <label for="show-tool-updates">Show Tool Execution Updates</label>
       </div>
     </div>
     
@@ -178,10 +363,40 @@
       <button type="button" id="new-session">New Session</button>
     </div>
     
+    <div class="example-prompts">
+      <div class="example-prompts-header">
+        <span>Example Prompts</span>
+        <button id="toggle-examples">Show</button>
+      </div>
+      <div class="example-prompts-content" style="display: none;">
+        <div class="prompt-category">
+          <h3>Weather Queries</h3>
+          <button class="example-prompt">What's the weather like in Paris?</button>
+          <button class="example-prompt">Should I bring an umbrella to New York tomorrow?</button>
+        </div>
+        <div class="prompt-category">
+          <h3>Travel Planning</h3>
+          <button class="example-prompt">Plan a weekend trip to San Francisco</button>
+          <button class="example-prompt">What are some places to visit in Tokyo?</button>
+        </div>
+        <div class="prompt-category">
+          <h3>Streaming Tool Demo</h3>
+          <button class="example-prompt">Show me a slow process with 8 steps</button>
+          <button class="example-prompt">Use the failing_process tool with steps_before_failure: 3</button>
+        </div>
+        <div class="prompt-category">
+          <h3>Timeout Demo</h3>
+          <button class="example-prompt">Run a potentially slow operation</button>
+          <button class="example-prompt">Run a tool with a custom timeout of 3 seconds</button>
+          <button class="example-prompt">Run a tool with no timeout</button>
+        </div>
+      </div>
+    </div>
+    
     <div class="chat-container" id="chat-container"></div>
     
     <form id="chat-form">
-      <input type="text" id="message-input" placeholder="Type your message here..." required>
+      <input type="text" id="message-input" placeholder="Ask a question or try an example prompt..." required>
       <button type="submit" id="submit-btn">Send</button>
     </form>
   </div>
@@ -193,13 +408,58 @@
     const submitBtn = document.getElementById('submit-btn');
     const sessionIdInput = document.getElementById('session-id');
     const newSessionBtn = document.getElementById('new-session');
+    const toggleExamplesBtn = document.getElementById('toggle-examples');
+    const examplesContent = document.querySelector('.example-prompts-content');
+    const showToolUpdatesCheckbox = document.getElementById('show-tool-updates');
+    const examplePromptButtons = document.querySelectorAll('.example-prompt');
+    
+    // Toggle example prompts visibility
+    toggleExamplesBtn.addEventListener('click', () => {
+      if (examplesContent.style.display === 'none') {
+        examplesContent.style.display = 'flex';
+        toggleExamplesBtn.textContent = 'Hide';
+      } else {
+        examplesContent.style.display = 'none';
+        toggleExamplesBtn.textContent = 'Show';
+      }
+    });
+    
+    // Handle example prompt buttons
+    examplePromptButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        messageInput.value = button.textContent;
+        messageInput.focus();
+        // Smooth scroll to the input field
+        messageInput.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
     
     // Generate a new random session ID
     newSessionBtn.addEventListener('click', () => {
       const randomId = 'session_' + Math.random().toString(36).substring(2, 10);
       sessionIdInput.value = randomId;
       chatContainer.innerHTML = ''; // Clear chat for new session
+      addWelcomeMessage(); // Add welcome message for new session
     });
+    
+    // Add a welcome message to the chat
+    function addWelcomeMessage() {
+      const welcomeDiv = document.createElement('div');
+      welcomeDiv.className = 'message bot-message';
+      welcomeDiv.innerHTML = `
+        <strong>👋 Welcome to the NestJS LangChain Tools Demo!</strong><br><br>
+        This interactive demo showcases various features:<br>
+        • Multi-agent routing for specialized tasks<br>
+        • Tool execution with streaming updates<br>
+        • Timeout handling for long-running operations<br><br>
+        Try the example prompts above or ask any question to get started!
+      `;
+      chatContainer.appendChild(welcomeDiv);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    // Show welcome message on initial load
+    addWelcomeMessage();
     
     // Add a message to the chat
     function addMessage(text, isUser = false) {
@@ -213,6 +473,11 @@
     
     // Create a container for tool updates
     function createToolUpdatesContainer() {
+      // Check if tool updates should be shown
+      if (!document.getElementById('show-tool-updates').checked) {
+        return null;
+      }
+      
       const container = document.createElement('div');
       container.className = 'tool-updates';
       container.innerHTML = '<h4>Tool Execution Updates:</h4>';
@@ -223,6 +488,12 @@
     
     // Add a tool update to the container
     function addToolUpdate(container, update) {
+      // If container is null or tool updates are disabled, just log to console and return
+      if (!container || !document.getElementById('show-tool-updates').checked) {
+        console.log('Tool update (hidden from UI):', update);
+        return;
+      }
+      
       const { type, toolName, content, progress, error } = update;
       
       console.log('Tool update received:', update); // Log to console for debugging
@@ -250,7 +521,7 @@
         case 'error':
           updateContent = `❌ Error: ${toolName} - ${error || content || 'An error occurred'}`;
           break;
-      case 'timeout':
+        case 'timeout':
           updateContent = `⏱️ Timeout: ${toolName} - ${error || content || 'Operation timed out'}`;
           break;
       }
