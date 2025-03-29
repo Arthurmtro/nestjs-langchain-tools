@@ -1,6 +1,6 @@
 {
   "name": "nestjs-langchain-tools",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "NestJS integration for LangChain tools with multi-agent support",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,12 +28,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/arthurmonteiro/nestjs-langchain-tools.git"
+    "url": "git+https://github.com/Arthurmtro/nestjs-langchain-tools.git"
   },
   "bugs": {
-    "url": "https://github.com/arthurmonteiro/nestjs-langchain-tools/issues"
+    "url": "https://github.com/Arthurmtro/nestjs-langchain-tools/issues"
   },
-  "homepage": "https://github.com/arthurmonteiro/nestjs-langchain-tools#readme",
+  "homepage": "https://github.com/Arthurmtro/nestjs-langchain-tools#readme",
   "keywords": [
     "nestjs",
     "langchain",
