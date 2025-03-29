@@ -13,7 +13,9 @@ A powerful NestJS module for seamless integration with LangChain tools and agent
 - **Provider Agnostic** - Works with OpenAI, Anthropic, Mistral, and more
 - **Memory Support** - Optional conversation memory for stateful interactions
 - **Type-Safe** - Uses TypeScript and Zod schemas for robust type safety
-- **Streaming Support** - Real-time token streaming with SSE
+- **Streaming Support** - Real-time token streaming with SSE and tool execution updates
+- **RAG Integration** - Built-in support for Retrieval Augmented Generation with vector databases
+- **Tool Timeouts** - Configure timeouts for long-running tools
 
 ## 📦 Installation
 
@@ -191,14 +193,61 @@ LangChainToolsModule.forRoot({
 })
 ```
 
+### RAG (Retrieval Augmented Generation)
+
+Enable knowledge base capabilities for your agents:
+
+```typescript
+// In your module configuration
+LangChainToolsModule.forRoot({
+  // ... other options
+  vectorStore: {
+    type: VectorStoreType.MEMORY, // Or PINECONE, CHROMA, FAISS, QDRANT
+    collectionName: 'my_collection',
+    // Additional provider-specific options
+  },
+  embeddingModel: 'text-embedding-3-small', // OpenAI embedding model
+})
+
+// In your agent class
+@ToolsAgent({ /* ... */ })
+@WithRetrieval({
+  enabled: true,
+  collectionName: 'my_collection',
+  topK: 5,                   // Number of documents to retrieve
+  scoreThreshold: 0.7,       // Minimum similarity score (0-1)
+  includeMetadata: true,     // Include document metadata in context
+  storeRetrievedContext: true, // Save retrieved context to memory
+})
+export class KnowledgeAgent {
+  constructor(private readonly vectorStoreService: VectorStoreService) {
+    // Initialize knowledge base
+    this.initializeKnowledgeBase();
+  }
+
+  async initializeKnowledgeBase() {
+    // Add documents to the knowledge base
+    await this.vectorStoreService.addDocuments([
+      DocumentProcessor.fromText("Example content", { source: "example" })
+    ], 'my_collection');
+  }
+}
+```
+
 ## 🧪 Testing
 
 ```bash
 # Set your API key
 export OPENAI_API_KEY=your-api-key
 
+# Run unit tests only (skips integration tests)
+npm run test:unit
+
 # Run all tests
 npm test
+
+# Run integration tests
+npm run test:integration
 
 # Run example app
 npm run example
@@ -210,22 +259,26 @@ Check out the complete example in the `/test/example-app` directory:
 
 - Weather Agent with forecast tools
 - Travel Agent with hotel and attraction tools
-- Coordinator that routes questions to the right agent
-- Streaming demo with SSE and fetch API
+- Knowledge Agent with RAG capabilities for answering questions
+- Streaming Tool Agent for visualizing progressive updates
+- Timeout Demo Agent for handling long-running operations
+- Interactive demo with streaming capabilities and RAG visualization
 
-### Using Streaming Responses
+### Streaming Responses and Tool Progress Updates
 
-The package supports real-time streaming responses through Server-Sent Events (SSE). Here's how to set it up in your controller:
+The package supports real-time streaming responses through Server-Sent Events (SSE) with both token streaming and tool execution updates. Here's how to set it up in your controller:
 
 ```typescript
-import { Controller, Post, Body, Sse, Res } from '@nestjs/common';
-import { Response } from 'express';
+import { Controller, Post, Body, Sse, Query } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
-import { CoordinatorService } from 'nestjs-langchain-tools';
+import { CoordinatorService, ToolStreamService, ToolStreamUpdate } from 'nestjs-langchain-tools';
 
 @Controller('api')
 export class YourController {
-  constructor(private readonly coordinatorService: CoordinatorService) {}
+  constructor(
+    private readonly coordinatorService: CoordinatorService,
+    private readonly toolStreamService: ToolStreamService
+  ) {}
 
   // Traditional endpoint returning complete response
   @Post('chat')
@@ -243,6 +296,15 @@ export class YourController {
       subject.next({ data: { error: 'Message parameter is required' } });
       subject.complete();
       return subject.asObservable();
+    }
+    
+    // Setup tool streaming if available
+    if (this.toolStreamService) {
+      this.toolStreamService.setStreamingEnabled(true);
+      this.toolStreamService.setCallback((update: ToolStreamUpdate) => {
+        // Send tool updates to client
+        subject.next({ data: { toolUpdate: update } });
+      });
     }
     
     this.coordinatorService.processMessage(
@@ -266,7 +328,7 @@ export class YourController {
 }
 ```
 
-Check out the complete streaming demo in `/test/example-app/streaming-demo.html` for frontend implementation examples.
+Check out the complete interactive demo in `/test/example-app/interactive-demo.html` for frontend implementation examples.
 
 ### Command-line Testing with curl
 
@@ -296,7 +358,7 @@ This project uses GitHub Actions for continuous integration and delivery:
 1. **On Pull Requests to `master`**:
    - Runs linting
    - Performs type checking
-   - Executes all tests
+   - Executes unit tests (integration tests are skipped in CI)
    - Builds the package
 
 2. **On Push to `master`**:
