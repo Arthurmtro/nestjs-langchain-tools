@@ -80,17 +80,30 @@ export class ToolDiscoveryService {
                 async (input: unknown) => {
                   const streamingEnabled = this.toolStreamService?.isStreamingEnabled() && toolMetadata.streaming;
                   
+                  this.logger.log(
+                    `Tool execution: ${toolMetadata.name} ` +
+                    `(streaming: ${streamingEnabled ? 'enabled' : 'disabled'}, ` +
+                    `service: ${this.toolStreamService?.isStreamingEnabled() ? 'enabled' : 'disabled'}, ` +
+                    `tool config: ${toolMetadata.streaming ? 'enabled' : 'disabled'})`
+                  );
+                  
                   // If streaming is enabled, notify about tool execution start
                   if (streamingEnabled) {
+                    this.logger.log(`Starting tool execution with streaming: ${toolMetadata.name}`);
                     this.toolStreamService?.startToolExecution(toolMetadata.name, input as Record<string, any>);
                   }
                   
                   try {
-                    // Execute the tool method
+                    // Execute the tool method - wrap in try/catch with direct logs
+                    this.logger.log(`Executing tool method: ${toolMetadata.name}`);
                     const result = await method.call(instance, input);
+                    this.logger.log(`Tool execution completed: ${toolMetadata.name} with result length: ${result?.length || 0}`);
                     
                     // Notify about tool execution completion
                     if (streamingEnabled) {
+                      this.logger.log(`Reporting tool completion: ${toolMetadata.name}`);
+                      
+                      // Direct call to the streaming service to ensure it works
                       this.toolStreamService?.completeToolExecution(toolMetadata.name, result);
                     }
                     

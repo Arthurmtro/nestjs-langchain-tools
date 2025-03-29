@@ -149,9 +149,11 @@ export class AgentDiscoveryService {
       // Create a chat prompt template
       const prompt = ChatPromptTemplate.fromMessages([
         ["system", systemPrompt],
-        new MessagesPlaceholder("chat_history"),
+        // Only include chat_history if memory is enabled to avoid the error
+        ...(agentOptions.useMemory ? [new MessagesPlaceholder("chat_history")] : []),
         ["human", "{input}"],
-        new MessagesPlaceholder("context"),
+        // Only include context if retrieval is enabled to avoid the error
+        ...(agentOptions.retrieval?.enabled ? [new MessagesPlaceholder("context")] : []),
         new MessagesPlaceholder("agent_scratchpad"),
       ]);
 

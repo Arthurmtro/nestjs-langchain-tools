@@ -30,7 +30,14 @@ export class AppController {
   constructor(
     private readonly coordinatorService: CoordinatorService,
     @Optional() private readonly toolStreamService?: ToolStreamService
-  ) {}
+  ) {
+    // Log if tool streaming service is available
+    if (this.toolStreamService) {
+      this.logger.log(`Tool streaming service is available, enabled: ${this.toolStreamService.isStreamingEnabled()}`);
+    } else {
+      this.logger.warn('Tool streaming service is not available');
+    }
+  }
 
   // Helper to get or create a conversation for a session
   private getOrCreateConversation(sessionId: string = 'default'): string[] {
@@ -114,14 +121,27 @@ export class AppController {
       let fullResponse = '';
 
       // Setup tool streaming if available
-      if (this.toolStreamService?.isStreamingEnabled()) {
+      if (this.toolStreamService) {
+        // Ensure streaming is enabled
+        if (!this.toolStreamService.isStreamingEnabled()) {
+          this.logger.log('Forcibly enabling tool streaming for this request');
+          this.toolStreamService.setStreamingEnabled(true);
+        }
+        
+        // Set the callback
         this.toolStreamService.setCallback((update: ToolStreamUpdate) => {
+          this.logger.log(`Sending tool update: ${update.toolName} - ${update.type} - ${update.progress !== undefined ? update.progress + '% - ' : ''}${update.content || ''}`);
           res.write(`data: ${JSON.stringify({ toolUpdate: update })}\n\n`);
           // Ensure the data is sent immediately
           if (typeof (res as any).flush === 'function') {
             (res as any).flush();
           }
         });
+        
+        // Double-check streaming is enabled
+        this.logger.log(`Tool streaming is now ${this.toolStreamService.isStreamingEnabled() ? 'enabled' : 'disabled'}`);
+      } else {
+        this.logger.warn('Tool streaming service not available for this request');
       }
       
       // Stream the response
@@ -194,10 +214,23 @@ export class AppController {
     let fullResponse = '';
     
     // Setup tool streaming if available
-    if (this.toolStreamService?.isStreamingEnabled()) {
+    if (this.toolStreamService) {
+      // Ensure streaming is enabled
+      if (!this.toolStreamService.isStreamingEnabled()) {
+        this.logger.log('Forcibly enabling tool streaming for this SSE request');
+        this.toolStreamService.setStreamingEnabled(true);
+      }
+      
+      // Set the callback
       this.toolStreamService.setCallback((update: ToolStreamUpdate) => {
+        this.logger.log(`Sending SSE tool update: ${update.toolName} - ${update.type} - ${update.progress !== undefined ? update.progress + '% - ' : ''}${update.content || ''}`);
         subject.next({ data: { toolUpdate: update } });
       });
+      
+      // Double-check streaming is enabled
+      this.logger.log(`Tool streaming is now ${this.toolStreamService.isStreamingEnabled() ? 'enabled' : 'disabled'} for SSE`);
+    } else {
+      this.logger.warn('Tool streaming service not available for this SSE request');
     }
 
     // Process the message and stream tokens

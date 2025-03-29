@@ -221,6 +221,8 @@
     function addToolUpdate(container, update) {
       const { type, toolName, content, progress, error } = update;
       
+      console.log('Tool update received:', update); // Log to console for debugging
+      
       // Create the update element
       const updateDiv = document.createElement('div');
       updateDiv.className = `tool-update tool-${type}`;
@@ -233,7 +235,7 @@
           updateContent = `▶️ Started: ${toolName} - ${content || ''}`;
           break;
         case 'progress':
-          updateContent = `🔄 ${content || 'Processing...'}`;
+          updateContent = `🔄 ${content || 'Processing...'}${progress !== undefined ? ` (${progress}%)` : ''}`;
           break;
         case 'complete':
           updateContent = `✅ Completed: ${toolName} - ${content || ''}`;
@@ -248,14 +250,14 @@
       
       updateDiv.textContent = updateContent;
       
-      // Add progress bar if progress is provided
-      if (progress !== undefined && type === 'progress') {
+      // Add progress bar if progress is provided or if it's a progress update
+      if ((progress !== undefined || type === 'progress') && type !== 'error') {
         const progressBar = document.createElement('div');
         progressBar.className = 'progress-bar';
         
         const progressFill = document.createElement('div');
         progressFill.className = 'progress-fill';
-        progressFill.style.width = `${progress}%`;
+        progressFill.style.width = `${progress || 0}%`;
         
         progressBar.appendChild(progressFill);
         updateDiv.appendChild(progressBar);

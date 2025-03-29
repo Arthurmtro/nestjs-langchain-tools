@@ -37,12 +37,12 @@ import { AppController } from './app.controller';
       // Default embedding model
       embeddingModel: 'text-embedding-3-small',
       
-      // Enable tool streaming
+      // Enable tool streaming - explicitly set to true for clarity
       enableToolStreaming: true,
       
-      // Tool streaming callback
+      // Tool streaming callback with detailed logging
       onToolStream: (update) => {
-        console.log(`[TOOL STREAM] ${update.toolName} - ${update.type}: ${update.content || ''}`);
+        console.log(`[TOOL STREAM] ${update.toolName} - ${update.type}${update.progress !== undefined ? ` (${update.progress}%)` : ''}: ${update.content || ''}`);
       }
     }),
   ],

@@ -13,6 +13,7 @@ import { z } from 'zod';
   systemPrompt: 'You are a helpful assistant that can demonstrate streaming tool execution. Use the slow_process tool to show streaming in action.',
   modelName: 'gpt-4o',
   temperature: 0,
+  useMemory: true, // Enable memory for this agent
 })
 @Injectable()
 export class StreamingToolAgent {
@@ -38,18 +39,41 @@ export class StreamingToolAgent {
     // Function to wait for a specified time
     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
     
+    // Send initial progress update immediately
+    this.toolStreamService.updateToolProgress(
+      'slow_process',
+      'Starting slow process...',
+      0
+    );
+    
+    // For each step, send multiple progress updates
     for (let i = 1; i <= steps; i++) {
-      // Wait for the step duration
-      await sleep(stepDuration);
+      // Each step has multiple sub-updates for smoother progress
+      const subUpdates = 5;
+      const subUpdateDuration = stepDuration / subUpdates;
       
-      // Calculate progress percentage
-      const progress = Math.floor((i / steps) * 100);
+      for (let j = 1; j <= subUpdates; j++) {
+        // Wait for the sub-step duration
+        await sleep(subUpdateDuration);
+        
+        // Calculate progress percentage more granularly
+        const progressBase = ((i - 1) / steps) * 100;
+        const progressIncrement = (j / subUpdates) * (100 / steps);
+        const progress = Math.floor(progressBase + progressIncrement);
+        
+        // Send progress update
+        this.toolStreamService.updateToolProgress(
+          'slow_process',
+          `Step ${i}/${steps} in progress (${j}/${subUpdates})`,
+          progress
+        );
+      }
       
-      // Send progress update
+      // Send step completion update
       this.toolStreamService.updateToolProgress(
         'slow_process',
         `Step ${i}/${steps} completed`,
-        progress
+        Math.floor((i / steps) * 100)
       );
     }
     
@@ -74,20 +98,52 @@ export class StreamingToolAgent {
     // Function to wait for a specified time
     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
     
+    // Send initial progress update immediately
+    this.toolStreamService.updateToolProgress(
+      'failing_process',
+      'Starting process that will eventually fail...',
+      0
+    );
+    
     for (let i = 1; i <= stepsBeforeFailure; i++) {
-      // Wait for a second
-      await sleep(1000);
+      // Each step has multiple sub-updates for smoother progress
+      const subUpdates = 4;
+      const subUpdateDuration = 250; // 250ms * 4 = 1 second per step
       
-      // Calculate progress percentage
-      const progress = Math.floor((i / 5) * 100);
+      for (let j = 1; j <= subUpdates; j++) {
+        // Wait for the sub-step duration
+        await sleep(subUpdateDuration);
+        
+        // Calculate progress percentage more granularly
+        const progressBase = ((i - 1) / 5) * 100;
+        const progressIncrement = (j / subUpdates) * (100 / 5);
+        const progress = Math.floor(progressBase + progressIncrement);
+        
+        // Send progress update
+        this.toolStreamService.updateToolProgress(
+          'failing_process',
+          `Step ${i}/5 in progress (${j}/${subUpdates})`,
+          progress
+        );
+      }
       
-      // Send progress update
+      // Send step completion update
       this.toolStreamService.updateToolProgress(
         'failing_process',
         `Step ${i}/5 completed`,
-        progress
+        Math.floor((i / 5) * 100)
       );
     }
+    
+    // Send a warning that we're about to fail
+    this.toolStreamService.updateToolProgress(
+      'failing_process',
+      `Warning: Process about to fail as requested...`,
+      Math.floor((stepsBeforeFailure / 5) * 100)
+    );
+    
+    // Wait a moment before failing
+    await sleep(500);
     
     // Throw an error after the specified number of steps
     throw new Error(`Process failed after ${stepsBeforeFailure} steps as requested`);
