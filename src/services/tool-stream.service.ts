@@ -18,6 +18,7 @@ export class ToolStreamService {
   private streamEnabled: boolean;
   private callback?: ToolStreamCallback;
   private streams: Map<string, Subject<ToolStreamUpdate>> = new Map();
+  private timedOutTools: Set<string> = new Set();
 
   constructor(
     @Optional() @Inject(LANGCHAIN_TOOLS_OPTIONS) 
@@ -127,6 +128,9 @@ export class ToolStreamService {
   startToolExecution(toolName: string, params?: Record<string, any>): void {
     if (!this.streamEnabled) return;
     
+    // Clear any previous timeout state for this tool
+    this.clearToolTimeout(toolName);
+    
     try {
       const update: ToolStreamUpdate = {
         type: ToolStreamUpdateType.START,
@@ -154,6 +158,12 @@ export class ToolStreamService {
       return;
     }
     
+    // Skip updates for tools that have timed out
+    if (this.hasToolTimedOut(toolName)) {
+      this.logger.debug(`Tool update ignored - tool has timed out: ${toolName}`);
+      return;
+    }
+    
     try {
       const update: ToolStreamUpdate = {
         type: ToolStreamUpdateType.PROGRESS,
@@ -174,8 +184,10 @@ export class ToolStreamService {
         }
       }
       
-      // Also send through the subject for any other subscribers
-      this.getToolStream(toolName).next(update);
+      // Only send through the subject if the tool hasn't timed out
+      if (!this.hasToolTimedOut(toolName) && this.streams.has(toolName)) {
+        this.getToolStream(toolName).next(update);
+      }
     } catch (error) {
       this.logger.error(`Error sending tool progress update: ${(error as Error).message}`);
     }
@@ -190,6 +202,12 @@ export class ToolStreamService {
   completeToolExecution(toolName: string, result: string): void {
     if (!this.streamEnabled) return;
     
+    // Skip completion for tools that have timed out
+    if (this.hasToolTimedOut(toolName)) {
+      this.logger.debug(`Tool completion ignored - tool has timed out: ${toolName}`);
+      return;
+    }
+    
     try {
       const update: ToolStreamUpdate = {
         type: ToolStreamUpdateType.COMPLETE,
@@ -198,13 +216,14 @@ export class ToolStreamService {
         result
       };
       
-      this.getToolStream(toolName).next(update);
+      if (this.streams.has(toolName)) {
+        this.getToolStream(toolName).next(update);
+      }
       this.logger.debug(`Tool execution completed: ${toolName}`);
       
-      // Clean up the stream
-      setTimeout(() => {
-        this.streams.delete(toolName);
-      }, TOOL_STREAM_UPDATE_INTERVAL);
+      // Clean up the stream and remove from timed out set
+      this.streams.delete(toolName);
+      this.clearToolTimeout(toolName);
     } catch (error) {
       this.logger.error(`Error sending tool completion update: ${(error as Error).message}`);
     }
@@ -219,6 +238,12 @@ export class ToolStreamService {
   errorToolExecution(toolName: string, error: string | Error): void {
     if (!this.streamEnabled) return;
     
+    // Skip error updates for tools that have already timed out
+    if (this.hasToolTimedOut(toolName)) {
+      this.logger.debug(`Tool error ignored - tool has timed out: ${toolName}`);
+      return;
+    }
+    
     try {
       const errorMessage = typeof error === 'string' ? error : error.message;
       
@@ -229,13 +254,14 @@ export class ToolStreamService {
         error: errorMessage
       };
       
-      this.getToolStream(toolName).next(update);
+      if (this.streams.has(toolName)) {
+        this.getToolStream(toolName).next(update);
+      }
       this.logger.debug(`Tool execution error: ${toolName} - ${errorMessage}`);
       
-      // Clean up the stream
-      setTimeout(() => {
-        this.streams.delete(toolName);
-      }, TOOL_STREAM_UPDATE_INTERVAL);
+      // Clean up the stream and clear timeout state
+      this.streams.delete(toolName);
+      this.clearToolTimeout(toolName);
     } catch (error) {
       this.logger.error(`Error sending tool error update: ${(error as Error).message}`);
     }
@@ -251,6 +277,9 @@ export class ToolStreamService {
     if (!this.streamEnabled) return;
     
     try {
+      // Mark this tool as timed out to prevent further updates
+      this.timedOutTools.add(toolName);
+      
       const update: ToolStreamUpdate = {
         type: ToolStreamUpdateType.TIMEOUT,
         toolName,
@@ -261,13 +290,30 @@ export class ToolStreamService {
       this.getToolStream(toolName).next(update);
       this.logger.debug(`Tool execution timeout: ${toolName} - ${timeoutMs}ms`);
       
-      // Clean up the stream
-      setTimeout(() => {
-        this.streams.delete(toolName);
-      }, TOOL_STREAM_UPDATE_INTERVAL);
+      // Clean up the stream immediately
+      this.streams.delete(toolName);
     } catch (error) {
       this.logger.error(`Error sending tool timeout update: ${(error as Error).message}`);
     }
+  }
+  
+  /**
+   * Checks if a tool has already timed out
+   * 
+   * @param toolName - Name of the tool
+   * @returns Whether the tool has timed out
+   */
+  hasToolTimedOut(toolName: string): boolean {
+    return this.timedOutTools.has(toolName);
+  }
+  
+  /**
+   * Removes a tool from the timed out set (for cleanup)
+   * 
+   * @param toolName - Name of the tool
+   */
+  clearToolTimeout(toolName: string): void {
+    this.timedOutTools.delete(toolName);
   }
   
   /**

@@ -129,6 +129,12 @@ export class ToolTimeoutService {
     toolName: string, 
     timeoutMs: number
   ): Promise<T> {
+    // Check if the tool has already timed out (shouldn't happen, but just in case)
+    if (this.toolStreamService?.hasToolTimedOut(toolName)) {
+      this.logger.warn(`Tool ${toolName} has already timed out, not executing`);
+      throw new ToolTimeoutError(toolName, timeoutMs);
+    }
+    
     const timeoutPromise = new Promise<never>((_, reject) => {
       const timeoutId = setTimeout(() => {
         const error = new ToolTimeoutError(toolName, timeoutMs);
