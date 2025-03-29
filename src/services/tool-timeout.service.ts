@@ -31,6 +31,9 @@ export class ToolTimeoutService {
   private globalTimeoutEnabled = DEFAULT_TOOL_TIMEOUT_ENABLED;
   private globalTimeoutMs = DEFAULT_TOOL_TIMEOUT;
   private onToolTimeout?: (toolName: string, timeoutMs: number) => void;
+  
+  // Map to store abort controllers for each tool execution
+  private abortControllers = new Map<string, AbortController>();
 
   constructor(
     @Optional() @Inject(LANGCHAIN_TOOLS_OPTIONS) 
@@ -117,6 +120,41 @@ export class ToolTimeoutService {
   }
 
   /**
+   * Creates an abort controller for a tool and returns its signal
+   * 
+   * @param toolName - The name of the tool
+   * @returns An abort signal that can be used to cancel the tool execution
+   */
+  createAbortSignal(toolName: string): AbortSignal {
+    // Generate a unique execution ID to handle multiple executions of the same tool
+    const executionId = `${toolName}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    
+    // Create a new abort controller
+    const controller = new AbortController();
+    this.abortControllers.set(executionId, controller);
+    
+    this.logger.debug(`Created abort controller for ${toolName} (${executionId})`);
+    
+    return controller.signal;
+  }
+  
+  /**
+   * Aborts a tool execution
+   * 
+   * @param toolName - The name of the tool
+   */
+  abortAllToolExecutions(toolName: string): void {
+    // Find all controllers for this tool
+    for (const [executionId, controller] of this.abortControllers.entries()) {
+      if (executionId.startsWith(`${toolName}_`)) {
+        this.logger.debug(`Aborting execution of ${toolName} (${executionId})`);
+        controller.abort();
+        this.abortControllers.delete(executionId);
+      }
+    }
+  }
+  
+  /**
    * Executes a function with a timeout
    * 
    * @param fn - The function to execute
@@ -144,6 +182,9 @@ export class ToolTimeoutService {
         
         // Log the timeout
         this.logger.warn(`Tool execution timed out: ${toolName} after ${timeoutMs}ms`);
+        
+        // Abort all executions of this tool
+        this.abortAllToolExecutions(toolName);
         
         // Notify of timeout if streaming is enabled
         if (this.toolStreamService?.isStreamingEnabled()) {

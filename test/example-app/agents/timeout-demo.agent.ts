@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ToolsAgent } from '../../../src/decorators/agent.decorator';
 import { AgentTool } from '../../../src/decorators/tool.decorator';
 import { ToolStreamService } from '../../../src/services/tool-stream.service';
+import { ToolTimeoutService } from '../../../src/services/tool-timeout.service';
 import { z } from 'zod';
 
 /**
@@ -17,7 +18,10 @@ import { z } from 'zod';
 })
 @Injectable()
 export class TimeoutDemoAgent {
-  constructor(private readonly toolStreamService: ToolStreamService) {}
+  constructor(
+    private readonly toolStreamService: ToolStreamService,
+    private readonly toolTimeoutService: ToolTimeoutService
+  ) {}
 
   /**
    * A tool that will timeout if run for too long
@@ -41,8 +45,26 @@ export class TimeoutDemoAgent {
       Math.max(duration, 10) : // Ensure at least 10 seconds if should timeout
       Math.min(duration, 3);   // Ensure less than 3 seconds if should not timeout
     
-    // Function to wait for a specified time
-    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    // Get an abort signal for this tool
+    const abortSignal = this.toolTimeoutService.createAbortSignal('potentially_slow_operation');
+    
+    // Function to wait for a specified time, respecting the abort signal
+    const sleep = (ms: number) => new Promise((resolve, reject) => {
+      // If already aborted, reject immediately
+      if (abortSignal.aborted) {
+        reject(new Error('Operation aborted'));
+        return;
+      }
+      
+      // Create a timeout
+      const timer = setTimeout(resolve, ms);
+      
+      // Listen for abort signal
+      abortSignal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(new Error('Operation aborted'));
+      }, { once: true });
+    });
     
     // Send initial progress update
     this.toolStreamService.updateToolProgress(
@@ -55,28 +77,47 @@ export class TimeoutDemoAgent {
     const updates = actualDuration;
     const updateInterval = actualDuration * 1000 / updates;
     
-    for (let i = 1; i <= updates; i++) {
-      // Skip if we're over the timeout (this won't execute if timeout works)
-      if (i * updateInterval > 5000 && input.should_timeout) {
+    try {
+      for (let i = 1; i <= updates; i++) {
+        // Check if aborted before continuing
+        if (abortSignal.aborted) {
+          this.toolStreamService.updateToolProgress(
+            'potentially_slow_operation',
+            `Operation aborted at step ${i}/${updates}`,
+            Math.floor((i / updates) * 100)
+          );
+          throw new Error('Operation aborted');
+        }
+        
+        // Skip if we're over the timeout (this won't execute if timeout works)
+        if (i * updateInterval > 5000 && input.should_timeout) {
+          this.toolStreamService.updateToolProgress(
+            'potentially_slow_operation',
+            `We would be at step ${i}/${updates}, but this should have timed out by now`,
+            Math.floor((i / updates) * 100)
+          );
+        }
+        
+        // Wait for the update interval
+        await sleep(updateInterval);
+        
+        // Calculate progress percentage
+        const progress = Math.floor((i / updates) * 100);
+        
+        // Send progress update
         this.toolStreamService.updateToolProgress(
           'potentially_slow_operation',
-          `We would be at step ${i}/${updates}, but this should have timed out by now`,
-          Math.floor((i / updates) * 100)
+          `Step ${i}/${updates} completed (${progress}%)`,
+          progress
         );
       }
-      
-      // Wait for the update interval
-      await sleep(updateInterval);
-      
-      // Calculate progress percentage
-      const progress = Math.floor((i / updates) * 100);
-      
-      // Send progress update
-      this.toolStreamService.updateToolProgress(
-        'potentially_slow_operation',
-        `Step ${i}/${updates} completed (${progress}%)`,
-        progress
-      );
+    } catch (error) {
+      if ((error as Error).message === 'Operation aborted') {
+        // This is expected when timed out, so just return a nice message
+        return `Operation was successfully aborted after timing out. This is the expected behavior.`;
+      }
+      // Re-throw unexpected errors
+      throw error;
     }
     
     return `Operation completed in ${actualDuration} seconds. ${
@@ -113,8 +154,26 @@ export class TimeoutDemoAgent {
     // Clamp timeout between 1 and 60 seconds
     const timeout = Math.min(Math.max(input.timeout, 1000), 60000);
     
-    // Function to wait for a specified time
-    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    // Get an abort signal for this tool
+    const abortSignal = this.toolTimeoutService.createAbortSignal('configurable_timeout_operation');
+    
+    // Function to wait for a specified time, respecting the abort signal
+    const sleep = (ms: number) => new Promise((resolve, reject) => {
+      // If already aborted, reject immediately
+      if (abortSignal.aborted) {
+        reject(new Error('Operation aborted'));
+        return;
+      }
+      
+      // Create a timeout
+      const timer = setTimeout(resolve, ms);
+      
+      // Listen for abort signal
+      abortSignal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(new Error('Operation aborted'));
+      }, { once: true });
+    });
     
     // Send initial progress update
     this.toolStreamService.updateToolProgress(
@@ -127,31 +186,50 @@ export class TimeoutDemoAgent {
     const updates = duration * 2; // 2 updates per second
     const updateInterval = duration * 1000 / updates;
     
-    for (let i = 1; i <= updates; i++) {
-      // Wait for the update interval
-      await sleep(updateInterval);
-      
-      // Calculate progress percentage
-      const progress = Math.floor((i / updates) * 100);
-      
-      // Calculate elapsed time
-      const elapsedMs = i * updateInterval;
-      
-      // Send progress update with timeout information
-      this.toolStreamService.updateToolProgress(
-        'configurable_timeout_operation',
-        `Step ${i}/${updates} (${progress}%) - Elapsed: ${elapsedMs}ms / Timeout: ${timeout}ms`,
-        progress
-      );
-      
-      // Show warning if getting close to timeout
-      if (elapsedMs > timeout * 0.8 && elapsedMs < timeout) {
+    try {
+      for (let i = 1; i <= updates; i++) {
+        // Check if aborted before continuing
+        if (abortSignal.aborted) {
+          this.toolStreamService.updateToolProgress(
+            'configurable_timeout_operation',
+            `Operation aborted at step ${i}/${updates}`,
+            Math.floor((i / updates) * 100)
+          );
+          throw new Error('Operation aborted');
+        }
+        
+        // Wait for the update interval
+        await sleep(updateInterval);
+        
+        // Calculate progress percentage
+        const progress = Math.floor((i / updates) * 100);
+        
+        // Calculate elapsed time
+        const elapsedMs = i * updateInterval;
+        
+        // Send progress update with timeout information
         this.toolStreamService.updateToolProgress(
           'configurable_timeout_operation',
-          `⚠️ Warning: Getting close to timeout (${elapsedMs}ms / ${timeout}ms)`,
+          `Step ${i}/${updates} (${progress}%) - Elapsed: ${elapsedMs}ms / Timeout: ${timeout}ms`,
           progress
         );
+        
+        // Show warning if getting close to timeout
+        if (elapsedMs > timeout * 0.8 && elapsedMs < timeout) {
+          this.toolStreamService.updateToolProgress(
+            'configurable_timeout_operation',
+            `⚠️ Warning: Getting close to timeout (${elapsedMs}ms / ${timeout}ms)`,
+            progress
+          );
+        }
       }
+    } catch (error) {
+      if ((error as Error).message === 'Operation aborted') {
+        // This is expected when timed out, so just return a nice message
+        return `Operation was successfully aborted after timing out. This is the expected behavior.`;
+      }
+      // Re-throw unexpected errors
+      throw error;
     }
     
     return `Operation completed in ${duration} seconds with a timeout set to ${timeout}ms.`;
@@ -176,8 +254,26 @@ export class TimeoutDemoAgent {
     // Clamp duration between 1 and 10 seconds
     const duration = Math.min(Math.max(input.duration, 1), 10);
     
-    // Function to wait for a specified time
-    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    // Get an abort signal for this tool (even though it won't time out)
+    const abortSignal = this.toolTimeoutService.createAbortSignal('no_timeout_operation');
+    
+    // Function to wait for a specified time, respecting the abort signal
+    const sleep = (ms: number) => new Promise((resolve, reject) => {
+      // If already aborted, reject immediately (this shouldn't happen for this tool)
+      if (abortSignal.aborted) {
+        reject(new Error('Operation aborted'));
+        return;
+      }
+      
+      // Create a timeout
+      const timer = setTimeout(resolve, ms);
+      
+      // Listen for abort signal
+      abortSignal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(new Error('Operation aborted'));
+      }, { once: true });
+    });
     
     // Send initial progress update
     this.toolStreamService.updateToolProgress(
@@ -190,19 +286,38 @@ export class TimeoutDemoAgent {
     const updates = duration * 2; // 2 updates per second
     const updateInterval = duration * 1000 / updates;
     
-    for (let i = 1; i <= updates; i++) {
-      // Wait for the update interval
-      await sleep(updateInterval);
-      
-      // Calculate progress percentage
-      const progress = Math.floor((i / updates) * 100);
-      
-      // Send progress update
-      this.toolStreamService.updateToolProgress(
-        'no_timeout_operation',
-        `Step ${i}/${updates} completed (${progress}%)`,
-        progress
-      );
+    try {
+      for (let i = 1; i <= updates; i++) {
+        // Check if aborted before continuing (shouldn't happen for this tool)
+        if (abortSignal.aborted) {
+          this.toolStreamService.updateToolProgress(
+            'no_timeout_operation',
+            `Operation aborted at step ${i}/${updates} (this shouldn't happen!)`,
+            Math.floor((i / updates) * 100)
+          );
+          throw new Error('Operation aborted');
+        }
+        
+        // Wait for the update interval
+        await sleep(updateInterval);
+        
+        // Calculate progress percentage
+        const progress = Math.floor((i / updates) * 100);
+        
+        // Send progress update
+        this.toolStreamService.updateToolProgress(
+          'no_timeout_operation',
+          `Step ${i}/${updates} completed (${progress}%)`,
+          progress
+        );
+      }
+    } catch (error) {
+      if ((error as Error).message === 'Operation aborted') {
+        // This is not expected for this tool, but handle it anyway
+        return `Operation was unexpectedly aborted. This should not happen for this tool.`;
+      }
+      // Re-throw unexpected errors
+      throw error;
     }
     
     return `Operation completed in ${duration} seconds with no timeout limit.`;
