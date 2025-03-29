@@ -9,4 +9,6 @@ module.exports = {
   coverageDirectory: './coverage',
   testEnvironment: 'node',
   roots: ['<rootDir>/src/', '<rootDir>/test/'],
+  // By default, exclude integration tests
+  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/test/integration/'],
 };

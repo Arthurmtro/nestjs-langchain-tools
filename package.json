@@ -16,6 +16,7 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",
+    "test:unit": "jest \"src/.*\\.spec\\.ts$\" --testPathIgnorePatterns=\"test/integration\"",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:integration": "jest test/integration --detectOpenHandles",
