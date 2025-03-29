@@ -97,13 +97,13 @@ export class ToolDiscoveryService {
                   
                   try {
                     // Check if timeout is enabled for this tool
-                    const timeoutEnabled = this.toolTimeoutService?.isTimeoutEnabled();
-                    let timeoutConfig = null;
+                    const timeoutEnabled = this.toolTimeoutService?.isTimeoutEnabled() || false;
+                    let timeoutConfig: { enabled: boolean; durationMs: number } | undefined;
                     
                     if (timeoutEnabled && this.toolTimeoutService) {
                       timeoutConfig = this.toolTimeoutService.getToolTimeoutConfig(toolMetadata);
                       
-                      if (timeoutConfig.enabled) {
+                      if (timeoutConfig?.enabled) {
                         this.logger.log(
                           `Tool execution with timeout: ${toolMetadata.name} (${timeoutConfig.durationMs}ms)`
                         );
@@ -120,18 +120,20 @@ export class ToolDiscoveryService {
                     
                     // Execute with or without timeout
                     let result;
-                    if (timeoutEnabled && timeoutConfig?.enabled && this.toolTimeoutService) {
+                    if (timeoutEnabled && timeoutConfig && timeoutConfig.enabled && this.toolTimeoutService) {
                       try {
+                        const durationMs = timeoutConfig.durationMs;
                         result = await this.toolTimeoutService.executeWithTimeout(
                           executeTool,
                           toolMetadata.name,
-                          timeoutConfig.durationMs
+                          durationMs
                         );
                       } catch (timeoutError) {
                         // Handle timeout error
                         if (timeoutError instanceof ToolTimeoutError) {
+                          const durationMs = timeoutConfig.durationMs;
                           this.logger.warn(
-                            `Tool ${toolMetadata.name} timed out after ${timeoutConfig.durationMs}ms`
+                            `Tool ${toolMetadata.name} timed out after ${durationMs}ms`
                           );
                           
                           // We don't need to notify about timeout here because
