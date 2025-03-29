@@ -5,6 +5,7 @@ import { AgentDiscoveryService } from '../services/agent-discovery.service';
 import { CoordinatorService } from '../services/coordinator.service';
 import { MemoryService } from '../services/memory.service';
 import { VectorStoreService } from '../services/vector-store.service';
+import { ToolStreamService } from '../services/tool-stream.service';
 import { LangChainToolsModuleOptions } from '../interfaces/module.interface';
 
 /**
@@ -23,14 +24,16 @@ export const LANGCHAIN_TOOLS_OPTIONS = 'LANGCHAIN_TOOLS_OPTIONS';
     AgentDiscoveryService, 
     CoordinatorService, 
     MemoryService,
-    VectorStoreService
+    VectorStoreService,
+    ToolStreamService
   ],
   exports: [
     ToolDiscoveryService, 
     AgentDiscoveryService, 
     CoordinatorService, 
     MemoryService,
-    VectorStoreService
+    VectorStoreService,
+    ToolStreamService
   ],
 })
 export class LangChainToolsModule {

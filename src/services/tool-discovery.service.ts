@@ -1,10 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { DiscoveryService, MetadataScanner, Reflector } from '@nestjs/core';
 import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
 import { tool } from '@langchain/core/tools';
 import { ToolInterface } from '@langchain/core/tools';
 import { TOOL_METADATA } from '../decorators/tool.decorator';
-import { ToolOptions } from '../interfaces/tool.interface';
+import { ToolOptions, ToolStreamUpdateType } from '../interfaces/tool.interface';
+import { ToolStreamService } from './tool-stream.service';
 
 /**
  * Service responsible for discovering and creating LangChain tools from decorated methods
@@ -17,6 +18,7 @@ export class ToolDiscoveryService {
     private readonly discoveryService: DiscoveryService,
     private readonly metadataScanner: MetadataScanner,
     private readonly reflector: Reflector,
+    @Optional() private readonly toolStreamService?: ToolStreamService,
   ) {}
 
   /**
@@ -76,14 +78,35 @@ export class ToolDiscoveryService {
               this.logger.debug(`Creating tool: ${toolMetadata.name}`);
               const toolFn = tool(
                 async (input: unknown) => {
+                  const streamingEnabled = this.toolStreamService?.isStreamingEnabled() && toolMetadata.streaming;
+                  
+                  // If streaming is enabled, notify about tool execution start
+                  if (streamingEnabled) {
+                    this.toolStreamService?.startToolExecution(toolMetadata.name, input as Record<string, any>);
+                  }
+                  
                   try {
-                    return await method.call(instance, input);
+                    // Execute the tool method
+                    const result = await method.call(instance, input);
+                    
+                    // Notify about tool execution completion
+                    if (streamingEnabled) {
+                      this.toolStreamService?.completeToolExecution(toolMetadata.name, result);
+                    }
+                    
+                    return result;
                   } catch (error) {
                     const err = error as Error;
                     this.logger.error(
                       `Error executing tool ${toolMetadata.name}:`, 
                       err.stack
                     );
+                    
+                    // Notify about tool execution error
+                    if (streamingEnabled) {
+                      this.toolStreamService?.errorToolExecution(toolMetadata.name, err);
+                    }
+                    
                     return `Error: ${err.message}`;
                   }
                 },

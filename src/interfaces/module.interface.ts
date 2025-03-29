@@ -1,5 +1,6 @@
 import { ModelProvider } from './agent.interface';
 import { VectorStoreOptions } from './vector-store.interface';
+import { ToolStreamUpdate } from './tool.interface';
 
 /**
  * Configuration options for the LangChainTools module
@@ -25,6 +26,12 @@ export interface LangChainToolsModuleOptions {
   
   /** Callback function when a new token is streamed */
   onToken?: (token: string) => void;
+  
+  /** Whether to enable streaming for tools */
+  enableToolStreaming?: boolean;
+  
+  /** Callback for tool streaming events */
+  onToolStream?: (update: ToolStreamUpdate) => void;
   
   /** Vector store configuration for RAG capabilities */
   vectorStore?: VectorStoreOptions;
