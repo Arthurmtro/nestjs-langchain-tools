@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CoordinatorService } from './coordinator.service';
 import { AgentDiscoveryService } from './agent-discovery.service';
+import { MemoryService } from './memory.service';
 import { AgentExecutor } from 'langchain/agents';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { AgentInfo } from '../interfaces/agent.interface';
@@ -53,6 +54,7 @@ describe('CoordinatorService', () => {
           provide: AgentDiscoveryService,
           useClass: MockAgentDiscoveryService,
         },
+        MemoryService,
       ],
     }).compile();
 

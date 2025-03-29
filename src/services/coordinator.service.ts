@@ -98,9 +98,10 @@ export class CoordinatorService implements OnModuleInit {
         });
       }
 
-      // Create the prompt template
+      // Create the prompt template, including chat_history
       const prompt = ChatPromptTemplate.fromMessages([
         ["system", systemPrompt],
+        new MessagesPlaceholder("chat_history"),
         ["human", "{input}"],
         new MessagesPlaceholder("agent_scratchpad"),
       ]);
@@ -121,6 +122,12 @@ export class CoordinatorService implements OnModuleInit {
           inputKey: "input",
           outputKey: "output",
         });
+        
+        // Pre-load with a system message to prompt the model
+        await memory.saveContext(
+          { input: "SYSTEM: Initialize conversation memory." },
+          { output: "SYSTEM: Conversation memory initialized. I will remember all messages in this conversation." }
+        );
       }
 
       // Create the agent executor
@@ -178,6 +185,33 @@ export class CoordinatorService implements OnModuleInit {
   }
 
   /**
+   * Helper to ensure memory is properly set up for a session
+   * 
+   * @param sessionId - The session identifier 
+   * @returns Memory variables for the session
+   */
+  private async setupSessionMemory(sessionId: string = 'default'): Promise<{ chat_history: any[] }> {
+    // Create a memory instance for this session
+    const memory = this.memoryService.getChatMemoryForSession(sessionId);
+    
+    // Update the coordinator agent with the session memory
+    if (this.coordinatorAgent) {
+      this.coordinatorAgent.memory = memory;
+    }
+    
+    // Pre-load memory variables
+    try {
+      const memoryVariables = await memory.loadMemoryVariables({});
+      const historyMessages = memoryVariables.chat_history || [];
+      this.logger.log(`Memory setup - Session ${sessionId} - Messages: ${historyMessages.length}`);
+      return { chat_history: historyMessages };
+    } catch (error) {
+      this.logger.error(`Memory setup error: ${(error as Error).message}`);
+      return { chat_history: [] };
+    }
+  }
+  
+  /**
    * Processes a user message and routes it to the appropriate agent
    * 
    * @param message - The user message to process
@@ -206,11 +240,8 @@ export class CoordinatorService implements OnModuleInit {
     try {
       this.logger.log(`Processing message: ${this.truncateLog(message)} (session: ${sessionId})`);
       
-      // Create a memory instance for this session
-      const memory = this.memoryService.getChatMemoryForSession(sessionId);
-      
-      // Update the coordinator agent with the session memory
-      this.coordinatorAgent.memory = memory;
+      // Set up memory for this session
+      const { chat_history } = await this.setupSessionMemory(sessionId);
       
       // Use streaming if requested
       let response: string;
@@ -218,8 +249,32 @@ export class CoordinatorService implements OnModuleInit {
         response = await this.processMessageStreaming(message, onToken, sessionId);
       } else {
         // Otherwise use standard processing
+        this.logger.log(`Processing with memory - Session: ${sessionId}`);
+        
+        // Load memory before invocation to check state
+        if (this.coordinatorAgent.memory) {
+          try {
+            const memoryVariables = await this.coordinatorAgent.memory.loadMemoryVariables({});
+            const historyMessages = memoryVariables.chat_history || [];
+            this.logger.log(`Memory pre-invoke - Message count: ${historyMessages.length}`);
+          } catch (memError) {
+            this.logger.error(`Memory pre-invoke error: ${(memError as Error).message}`);
+          }
+        }
+        
         const result = await this.coordinatorAgent.invoke({ input: message });
         response = result.output as string;
+        
+        // Check memory after invocation
+        if (this.coordinatorAgent.memory) {
+          try {
+            const memoryVariables = await this.coordinatorAgent.memory.loadMemoryVariables({});
+            const historyMessages = memoryVariables.chat_history || [];
+            this.logger.log(`Memory post-invoke - Message count: ${historyMessages.length}`);
+          } catch (memError) {
+            this.logger.error(`Memory post-invoke error: ${(memError as Error).message}`);
+          }
+        }
       }
       
       return response;
@@ -253,8 +308,14 @@ export class CoordinatorService implements OnModuleInit {
       // Create a variable to collect the complete response
       let fullResponse = '';
       
+      // Set up memory for this session
+      const { chat_history } = await this.setupSessionMemory(sessionId);
+      
       // Use the streaming interface from langchain
-      const stream = await this.coordinatorAgent.streamLog({ input: message });
+      const stream = await this.coordinatorAgent.streamLog({ 
+        input: message,
+        chat_history: chat_history  // Explicitly provide chat history
+      });
       
       for await (const chunk of stream) {
         if (chunk.ops?.length && chunk.ops[0].op === 'add') {
@@ -281,10 +342,23 @@ export class CoordinatorService implements OnModuleInit {
       // After streaming, we need to manually save to memory
       // as the invoke method would normally handle this
       if (this.coordinatorAgent.memory) {
-        await this.coordinatorAgent.memory.saveContext(
-          { input: message },
-          { output: fullResponse }
-        );
+        this.logger.log(`Saving to memory - Session: ${sessionId}`);
+        this.logger.log(`Input: ${message}`);
+        this.logger.log(`Output: ${fullResponse}`);
+        
+        try {
+          await this.coordinatorAgent.memory.saveContext(
+            { input: message },
+            { output: fullResponse }
+          );
+          
+          // Make sure the memory works by loading it
+          const memoryVariables = await this.coordinatorAgent.memory.loadMemoryVariables({});
+          const historyMessages = memoryVariables.chat_history || [];
+          this.logger.log(`Memory loaded - Message count: ${historyMessages.length}`);
+        } catch (memError) {
+          this.logger.error(`Memory error: ${(memError as Error).message}`);
+        }
       }
       
       return fullResponse;

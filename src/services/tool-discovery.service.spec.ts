@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DiscoveryService, MetadataScanner, Reflector } from '@nestjs/core';
 import { ToolDiscoveryService } from './tool-discovery.service';
+import { MemoryService } from './memory.service';
 import { TOOL_METADATA } from '../decorators/tool.decorator';
 import { Injectable } from '@nestjs/common';
 import { AgentTool } from '../decorators/tool.decorator';
@@ -74,6 +75,7 @@ describe('ToolDiscoveryService', () => {
         { provide: DiscoveryService, useClass: MockDiscoveryService },
         { provide: MetadataScanner, useClass: MockMetadataScanner },
         { provide: Reflector, useClass: MockReflector },
+        MemoryService,
       ],
     }).compile();
 

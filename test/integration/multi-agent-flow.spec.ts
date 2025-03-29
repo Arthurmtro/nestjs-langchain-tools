@@ -3,6 +3,7 @@ import { Injectable, Module } from '@nestjs/common';
 import { CoordinatorService } from '../../src/services/coordinator.service';
 import { AgentDiscoveryService } from '../../src/services/agent-discovery.service';
 import { ToolDiscoveryService } from '../../src/services/tool-discovery.service';
+import { MemoryService } from '../../src/services/memory.service';
 import { DiscoveryModule, DiscoveryService, Reflector } from '@nestjs/core';
 import { ModelProvider, ToolsAgent } from '../../src/decorators/agent.decorator';
 import { AgentTool } from '../../src/decorators/tool.decorator';
@@ -99,6 +100,7 @@ class TravelAgent {
       }
     },
     CoordinatorService,
+    MemoryService,
     WeatherAgent,
     TravelAgent,
   ],

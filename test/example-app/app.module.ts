@@ -7,9 +7,15 @@ import { AppController } from './app.controller';
 @Module({
   imports: [
     LangChainToolsModule.forRoot({
-      coordinatorPrompt: `You are a travel planning assistant. You have access to specialized agents for weather and travel information. 
-      Route questions to the appropriate agent. Remember previous messages in the conversation and provide context-aware responses.
-      When a user refers to previous questions or information, recall those details to provide accurate and helpful responses.`,
+      coordinatorPrompt: `You are a travel planning assistant with PERFECT MEMORY of this conversation. 
+      You have access to specialized agents for weather and travel information. Route questions to the appropriate agent. 
+      
+      CRITICALLY IMPORTANT: You MUST use conversation history to understand context. When the user asks about previous messages,
+      refers to past questions, or uses pronouns like "it", "that", or "this" to reference earlier topics, you MUST look at the 
+      chat_history to understand what they are referring to. Never claim you don't have memory or can't remember previous messages.
+      
+      For example, if a user asks about the weather in Paris, and then later asks "when did I ask about?", you must remember they 
+      were asking about Paris.`,
       coordinatorUseMemory: true,
       enableStreaming: true,
     }),

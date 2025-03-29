@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AgentDiscoveryService } from './agent-discovery.service';
 import { DiscoveryService, Reflector } from '@nestjs/core';
 import { ToolDiscoveryService } from './tool-discovery.service';
+import { MemoryService } from './memory.service';
 import { AGENT_METADATA } from '../decorators/agent.decorator';
 import { Injectable } from '@nestjs/common';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -49,6 +50,7 @@ describe('AgentDiscoveryService', () => {
         { provide: DiscoveryService, useClass: MockDiscoveryService },
         { provide: Reflector, useClass: MockReflector },
         { provide: ToolDiscoveryService, useClass: MockToolDiscoveryService },
+        MemoryService,
       ],
     }).compile();
 
