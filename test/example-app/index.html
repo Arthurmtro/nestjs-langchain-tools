@@ -1,0 +1,2037 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NestJS LangChain Tools — Travel Concierge</title>
+    <style>
+      :root {
+        /* Base */
+        --bg: #0a0a0c;
+        --bg-1: #101014;
+        --bg-2: #16161b;
+        --bg-3: #1d1d23;
+        --bg-hover: #24242b;
+        --border: #26262e;
+        --border-strong: #34343c;
+        --text: #f4f4f5;
+        --text-dim: #a1a1aa;
+        --text-mute: #71717a;
+        --text-faint: #52525b;
+
+        /* Brand */
+        --accent: #818cf8;
+        --accent-hover: #a5b4fc;
+        --accent-soft: rgba(129, 140, 248, 0.12);
+        --accent-glow: rgba(129, 140, 248, 0.22);
+
+        /* Status */
+        --good: #34d399;
+        --good-soft: rgba(52, 211, 153, 0.12);
+        --warn: #fbbf24;
+        --bad: #f87171;
+
+        /* Agent accents */
+        --a-weather: #60a5fa;
+        --a-booking: #f472b6;
+        --a-knowledge: #fbbf24;
+        --a-supervisor: #a78bfa;
+        --a-unknown: #a1a1aa;
+
+        --radius-sm: 6px;
+        --radius: 10px;
+        --radius-lg: 14px;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.5);
+        --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Consolas, monospace;
+
+        --duration: 0.18s;
+        --ease: cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0; padding: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+        font-size: 13.5px;
+        line-height: 1.55;
+        height: 100vh;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      button, input, textarea, select { font: inherit; color: inherit; }
+      button { cursor: pointer; }
+
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 999px;
+        border: 2px solid var(--bg);
+      }
+      ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+      /* ============== Layout ============== */
+      .app {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        grid-template-rows: 52px 1fr auto;
+        grid-template-areas:
+          'header header'
+          'main   side'
+          'input  side';
+        height: 100vh;
+      }
+
+      /* Header */
+      header.top {
+        grid-area: header;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 22px;
+        border-bottom: 1px solid var(--border);
+        background:
+          linear-gradient(180deg, rgba(129, 140, 248, 0.04) 0%, transparent 100%),
+          var(--bg-1);
+      }
+      header.top .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      header.top .logo {
+        width: 22px; height: 22px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, var(--accent) 0%, var(--a-supervisor) 100%);
+        box-shadow: 0 2px 8px var(--accent-glow);
+      }
+      header.top h1 {
+        font-size: 13.5px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 0;
+      }
+      header.top .spacer { flex: 1; }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11.5px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--bg-2);
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+        font-weight: 500;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .pill.streaming { color: var(--good); }
+      .pill.streaming::before {
+        content: '';
+        width: 6px; height: 6px; border-radius: 50%;
+        background: var(--good);
+        box-shadow: 0 0 6px var(--good);
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      @keyframes pulse { 50% { opacity: 0.4; } }
+
+      .icon-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 11px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--bg-2);
+        color: var(--text-dim);
+        font-size: 12.5px;
+        transition: all var(--duration) var(--ease);
+      }
+      .icon-btn:hover {
+        background: var(--bg-hover);
+        border-color: var(--border-strong);
+        color: var(--text);
+      }
+
+      /* ============== Main stream ============== */
+      main.stream {
+        grid-area: main;
+        overflow-y: auto;
+        padding: 32px 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .stream-inner {
+        max-width: 760px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 0 32px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      /* ============== Empty state (hero gallery) ============== */
+      .hero {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 8px 32px 32px;
+        width: 100%;
+      }
+      .hero .tagline {
+        text-align: center;
+        margin-bottom: 28px;
+      }
+      .hero .tagline .kicker {
+        display: inline-block;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 600;
+        padding: 4px 10px;
+        background: var(--accent-soft);
+        border-radius: 999px;
+        margin-bottom: 12px;
+      }
+      .hero .tagline h2 {
+        font-size: 24px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        margin: 0 0 8px 0;
+        line-height: 1.25;
+        background: linear-gradient(180deg, var(--text) 0%, var(--text-dim) 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .hero .tagline p {
+        color: var(--text-dim);
+        margin: 0;
+        font-size: 13.5px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 10px;
+      }
+      .hero-group {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-faint);
+        margin-top: 20px;
+      }
+      .hero-group:first-child { margin-top: 4px; }
+      .hero-group::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+
+      .prompt-card {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 14px 15px;
+        background: var(--bg-1);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        text-align: left;
+        transition: all var(--duration) var(--ease);
+        position: relative;
+        overflow: hidden;
+      }
+      .prompt-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top left, var(--accent-soft), transparent 50%);
+        opacity: 0;
+        transition: opacity var(--duration) var(--ease);
+        pointer-events: none;
+      }
+      .prompt-card:hover {
+        background: var(--bg-2);
+        border-color: var(--border-strong);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow);
+      }
+      .prompt-card:hover::before { opacity: 1; }
+      .prompt-card .title {
+        font-size: 13px;
+        color: var(--text);
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .prompt-card .preview {
+        font-size: 11.5px;
+        color: var(--text-mute);
+        font-family: var(--mono);
+        line-height: 1.45;
+      }
+      .prompt-card .tags {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+      .tag-chip {
+        font-size: 10px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+      }
+
+      /* ============== Messages ============== */
+      .msg-row {
+        display: flex;
+        animation: slide-in 0.2s var(--ease);
+      }
+      .msg-row.user { justify-content: flex-end; }
+      .msg-row.agent { justify-content: flex-start; }
+
+      @keyframes slide-in {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .msg.user {
+        max-width: 80%;
+        padding: 10px 14px;
+        background: var(--accent);
+        color: white;
+        border-radius: var(--radius);
+        border-bottom-right-radius: 3px;
+        font-size: 13.5px;
+        line-height: 1.55;
+        word-break: break-word;
+        box-shadow: 0 4px 12px var(--accent-glow);
+      }
+
+      .msg.agent {
+        max-width: 90%;
+        display: flex;
+        gap: 10px;
+      }
+      .msg.agent .avatar {
+        flex-shrink: 0;
+        width: 26px; height: 26px;
+        border-radius: 7px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        margin-top: 2px;
+      }
+      .msg.agent .bubble {
+        background: var(--bg-1);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        border-top-left-radius: 3px;
+        padding: 10px 14px;
+        word-break: break-word;
+        position: relative;
+      }
+      .msg.agent .bubble .content {
+        display: block;
+      }
+
+      /* Worker "step" bubbles — visually subordinate, feel like debug
+         rather than the user-facing answer. */
+      .msg-row.agent.step {
+        opacity: 0.78;
+      }
+      .msg-row.agent.step .msg.agent { max-width: 78%; }
+      .msg-row.agent.step .avatar {
+        width: 22px; height: 22px;
+        font-size: 9.5px;
+        border-radius: 6px;
+      }
+      .msg-row.agent.step .bubble {
+        padding: 8px 12px;
+        font-size: 12.5px;
+      }
+      .msg-row.agent.step .bubble .who { font-size: 9.5px; }
+      .msg-row.agent.step .bubble .content { font-size: 12.5px; color: var(--text-dim); }
+      .msg-row.agent.step .bubble .content strong { color: var(--text); }
+
+      /* Supervisor's synthesized final answer — the primary bubble. */
+      .msg-row.agent.primary .msg.agent { max-width: 92%; }
+      .msg-row.agent.primary .avatar {
+        width: 30px; height: 30px;
+        font-size: 12px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px var(--accent-glow);
+      }
+      .msg-row.agent.primary .bubble {
+        background: linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
+        border-color: var(--border-strong);
+        padding: 14px 18px;
+        font-size: 14px;
+        box-shadow: var(--shadow);
+      }
+      .msg-row.agent.primary .bubble::before {
+        width: 3px;
+        background: linear-gradient(180deg, var(--a-supervisor), var(--accent));
+      }
+      .msg-row.agent.primary .bubble .who {
+        font-size: 10.5px;
+        letter-spacing: 0.08em;
+      }
+      .msg-row.agent.primary .bubble .content { font-size: 14px; }
+      .msg.agent .bubble .content p { margin: 0 0 8px 0; line-height: 1.55; }
+      .msg.agent .bubble .content p:last-child { margin-bottom: 0; }
+      .msg.agent .bubble .content ul,
+      .msg.agent .bubble .content ol { margin: 4px 0 8px 0; padding-left: 22px; }
+      .msg.agent .bubble .content li { margin: 2px 0; }
+      .msg.agent .bubble .content code {
+        background: var(--bg-2);
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-size: 12px;
+        font-family: var(--mono);
+      }
+      .msg.agent .bubble .content pre {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 10px 12px;
+        font-size: 11.5px;
+        overflow-x: auto;
+        margin: 6px 0;
+      }
+      .msg.agent .bubble .content pre code { background: transparent; padding: 0; font-size: 11.5px; }
+      .msg.agent .bubble .content strong { color: var(--text); font-weight: 600; }
+      .msg.agent .bubble .content em { color: var(--text-dim); font-style: italic; }
+      .msg.agent .bubble .content a {
+        color: var(--accent-hover);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      .msg.agent .bubble .content a:hover { color: var(--accent); }
+      .msg.agent .bubble .content h1,
+      .msg.agent .bubble .content h2,
+      .msg.agent .bubble .content h3 {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 10px 0 4px;
+        color: var(--text);
+      }
+      .msg.agent .bubble .content blockquote {
+        border-left: 2px solid var(--border);
+        padding-left: 10px;
+        margin: 6px 0;
+        color: var(--text-dim);
+      }
+      .msg.agent .bubble::before {
+        content: '';
+        position: absolute;
+        top: 0; bottom: 0; left: 0;
+        width: 2px;
+        background: var(--agent-color, var(--a-unknown));
+        border-top-left-radius: 2px;
+        border-bottom-left-radius: 2px;
+      }
+      .msg.agent .bubble .who {
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 4px;
+        color: var(--agent-color, var(--a-unknown));
+      }
+
+      /* ============== Timeline events ============== */
+      .event {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 0;
+        font-size: 12px;
+        color: var(--text-mute);
+        animation: slide-in 0.2s var(--ease);
+      }
+      .event.handoff {
+        padding: 8px 12px;
+        background: var(--bg-1);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        align-self: flex-start;
+        font-size: 11.5px;
+      }
+      .event.handoff strong { font-weight: 600; }
+      .event.handoff .arrow { color: var(--text-faint); margin: 0 4px; }
+
+      .event.thinking { color: var(--text-faint); font-style: italic; }
+      .event.thinking .dots::after {
+        content: '';
+        display: inline-block;
+        animation: dots 1.4s infinite steps(1);
+      }
+      @keyframes dots {
+        0% { content: ''; }
+        25% { content: ' ·'; }
+        50% { content: ' · ·'; }
+        75%, 100% { content: ' · · ·'; }
+      }
+      .event .icon-circle {
+        width: 18px; height: 18px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        background: var(--bg-2);
+        color: var(--text-dim);
+      }
+
+      /* ============== Tool cards ============== */
+      .tool-card {
+        align-self: flex-start;
+        max-width: 92%;
+        background: var(--bg-1);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-family: var(--mono);
+        animation: slide-in 0.2s var(--ease);
+        overflow: hidden;
+      }
+      .tool-card .head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 12px;
+        font-size: 11.5px;
+      }
+      .tool-card .head .tool-ico {
+        color: var(--accent);
+        font-size: 13px;
+      }
+      .tool-card .agent-badge {
+        font-family: inherit;
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: 700;
+      }
+      .tool-card .name {
+        color: var(--text);
+        font-weight: 600;
+        font-family: var(--mono);
+      }
+      .tool-card .status {
+        margin-left: auto;
+        color: var(--text-mute);
+        font-size: 10.5px;
+        font-family: inherit;
+      }
+      .tool-card .status.done { color: var(--good); }
+      .tool-card .status.error { color: var(--bad); }
+      .tool-card .progress {
+        height: 2px;
+        background: var(--border);
+        overflow: hidden;
+      }
+      .tool-card .progress > div {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--a-supervisor));
+        transition: width 0.2s ease;
+      }
+      .tool-card details { padding: 0 12px 10px; }
+      .tool-card summary {
+        cursor: pointer;
+        color: var(--text-faint);
+        font-family: inherit;
+        font-size: 10.5px;
+        user-select: none;
+        list-style: none;
+        padding: 6px 0 4px;
+      }
+      .tool-card summary:hover { color: var(--text-dim); }
+      .tool-card summary::-webkit-details-marker { display: none; }
+      .tool-card summary::before { content: '▸ '; display: inline-block; transition: transform 0.15s; }
+      .tool-card details[open] summary::before { transform: rotate(90deg); }
+      .tool-card .io {
+        margin-top: 4px;
+        white-space: pre-wrap;
+        color: var(--text-dim);
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 8px 10px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 11px;
+      }
+      .tool-card .io-label {
+        display: block;
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-faint);
+        margin: 6px 0 2px;
+        font-weight: 600;
+      }
+
+      /* Agent color tokens */
+      .a-weatheragent { --agent-color: var(--a-weather); color: var(--a-weather); }
+      .a-bookingagent { --agent-color: var(--a-booking); color: var(--a-booking); }
+      .a-knowledgeagent { --agent-color: var(--a-knowledge); color: var(--a-knowledge); }
+      .a-travelconcierge, .a-supervisor, .a-coordinator {
+        --agent-color: var(--a-supervisor); color: var(--a-supervisor);
+      }
+      .a-unknown { --agent-color: var(--a-unknown); color: var(--a-unknown); }
+
+      .bg-a-weatheragent { background: rgba(96, 165, 250, 0.15); color: var(--a-weather); }
+      .bg-a-bookingagent { background: rgba(244, 114, 182, 0.15); color: var(--a-booking); }
+      .bg-a-knowledgeagent { background: rgba(251, 191, 36, 0.15); color: var(--a-knowledge); }
+      .bg-a-travelconcierge, .bg-a-supervisor, .bg-a-coordinator {
+        background: rgba(167, 139, 250, 0.15); color: var(--a-supervisor);
+      }
+      .bg-a-unknown { background: rgba(161, 161, 170, 0.15); color: var(--a-unknown); }
+
+      /* ============== Input ============== */
+      .input-wrap {
+        grid-area: input;
+        padding: 12px 32px 18px;
+        background: var(--bg);
+      }
+      .input-inner {
+        max-width: 760px;
+        margin: 0 auto;
+        position: relative;
+      }
+      .input-row {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+        background: var(--bg-1);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 8px 8px 8px 12px;
+        transition: border-color var(--duration) var(--ease);
+      }
+      .input-row:focus-within {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px var(--accent-soft);
+      }
+      textarea.prompt {
+        flex: 1;
+        background: transparent;
+        border: none;
+        color: var(--text);
+        padding: 6px 4px;
+        resize: none;
+        font-size: 13.5px;
+        min-height: 28px;
+        max-height: 180px;
+        line-height: 1.5;
+      }
+      textarea.prompt:focus { outline: none; }
+      textarea.prompt::placeholder { color: var(--text-faint); }
+
+      .btn-send {
+        background: var(--accent);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: var(--radius);
+        font-weight: 500;
+        font-size: 12.5px;
+        transition: background var(--duration) var(--ease);
+      }
+      .btn-send:hover:not(:disabled) { background: var(--accent-hover); }
+      .btn-send:disabled {
+        background: var(--bg-3);
+        color: var(--text-mute);
+        cursor: not-allowed;
+      }
+
+      .input-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 7px;
+        padding: 0 2px;
+        font-size: 11px;
+        color: var(--text-faint);
+      }
+      .input-meta .kbd {
+        font-family: var(--mono);
+        font-size: 10px;
+        padding: 1px 5px;
+        background: var(--bg-2);
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        color: var(--text-mute);
+      }
+
+      /* ============== Sidebar ============== */
+      aside {
+        grid-area: side;
+        border-left: 1px solid var(--border);
+        background: var(--bg);
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+      }
+      .panel {
+        padding: 18px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .panel:last-child { border-bottom: none; }
+      .panel h3 {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-faint);
+        margin: 0 0 14px 0;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .panel h3 .action {
+        font-size: 10.5px;
+        text-transform: none;
+        letter-spacing: 0;
+        color: var(--text-dim);
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+        transition: background var(--duration) var(--ease);
+      }
+      .panel h3 .action:hover { background: var(--bg-2); color: var(--text); }
+
+      /* Cost */
+      .cost-big {
+        font-size: 30px;
+        font-weight: 700;
+        color: var(--good);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        margin-bottom: 4px;
+      }
+      .cost-big.free { color: var(--text); font-size: 18px; font-weight: 600; }
+      .cost-big.unknown { color: var(--text-faint); font-size: 20px; font-weight: 500; }
+      .cost-sub {
+        font-size: 11.5px;
+        color: var(--text-mute);
+      }
+
+      /* Agent row (unified: config + stats) */
+      .agent-list { display: flex; flex-direction: column; gap: 2px; }
+      .agent-item {
+        padding: 10px 10px;
+        border-radius: var(--radius-sm);
+        display: grid;
+        grid-template-columns: 8px 1fr auto;
+        gap: 10px;
+        align-items: center;
+        transition: background var(--duration) var(--ease);
+        position: relative;
+      }
+      .agent-item:hover { background: var(--bg-1); }
+      .agent-item.active { background: var(--bg-1); }
+      .agent-item.active .dot-live {
+        opacity: 1;
+        box-shadow: 0 0 8px currentColor;
+      }
+      .agent-item .dot-live {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        opacity: 0.5;
+        transition: all var(--duration) var(--ease);
+      }
+      .agent-item .info { min-width: 0; }
+      .agent-item .name-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .agent-item .name-row .role {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-faint);
+        font-weight: 500;
+      }
+      .agent-item .name-row .badge-override {
+        font-size: 9px;
+        padding: 1px 5px;
+        border-radius: 3px;
+        background: var(--accent-soft);
+        color: var(--accent-hover);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 700;
+      }
+      .agent-item .meta {
+        font-size: 10.5px;
+        color: var(--text-mute);
+        font-family: var(--mono);
+        margin-top: 2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .agent-item .stats {
+        text-align: right;
+        font-size: 11px;
+        color: var(--text-mute);
+        font-variant-numeric: tabular-nums;
+      }
+      .agent-item .stats .cost { color: var(--text); font-weight: 600; font-size: 12px; display: block; }
+      .agent-item .stats .tokens { color: var(--text-faint); font-size: 10px; }
+      .agent-item .edit-btn {
+        position: absolute;
+        top: 6px; right: 6px;
+        padding: 3px 8px;
+        font-size: 10.5px;
+        background: var(--bg-2);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        color: var(--text-dim);
+        opacity: 0;
+        transition: opacity var(--duration) var(--ease);
+      }
+      .agent-item:hover .edit-btn { opacity: 1; }
+      .agent-item .edit-btn:hover { background: var(--bg-hover); color: var(--text); }
+
+      .agent-item.is-default {
+        padding: 8px 10px;
+        grid-template-columns: 1fr auto;
+      }
+      .agent-item.is-default .info { display: flex; flex-direction: column; }
+
+      /* Segmented control */
+      .seg {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        background: var(--bg-1);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 2px;
+        gap: 2px;
+      }
+      .seg-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-dim);
+        font-size: 11.5px;
+        font-weight: 500;
+        padding: 6px 8px;
+        border-radius: 4px;
+        transition: all var(--duration) var(--ease);
+      }
+      .seg-btn:hover:not(.active) { color: var(--text); }
+      .seg-btn.active {
+        background: var(--bg-3);
+        color: var(--text);
+        box-shadow: var(--shadow-sm);
+      }
+      .mode-caption {
+        margin-top: 8px;
+        font-size: 11px;
+        color: var(--text-mute);
+        line-height: 1.45;
+      }
+      .mode-caption code {
+        font-size: 10.5px;
+        padding: 1px 4px;
+      }
+
+      /* Mini gallery (shown only when chat is active) */
+      .mini-gallery { display: flex; flex-direction: column; gap: 4px; }
+      .mini-prompt {
+        padding: 8px 10px;
+        background: var(--bg-1);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 12px;
+        color: var(--text-dim);
+        text-align: left;
+        transition: all var(--duration) var(--ease);
+        line-height: 1.35;
+      }
+      .mini-prompt:hover {
+        background: var(--bg-2);
+        border-color: var(--border-strong);
+        color: var(--text);
+      }
+      .mini-prompt .t { color: var(--text); font-weight: 500; display: block; font-size: 12px; }
+      .mini-prompt .p { color: var(--text-faint); font-size: 10.5px; font-family: var(--mono); }
+
+      /* Modal */
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        animation: fade-in 0.15s ease-out;
+      }
+      @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+      .overlay.hidden { display: none; }
+      .modal {
+        background: var(--bg-1);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 22px 24px;
+        width: 480px;
+        max-width: 92vw;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: var(--shadow-lg);
+      }
+      .modal h2 { margin: 0 0 2px 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+      .modal .sub { color: var(--text-dim); font-size: 12.5px; margin-bottom: 18px; }
+      .modal .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+      .modal label { font-size: 11.5px; color: var(--text-dim); font-weight: 500; }
+      .modal label .hint { color: var(--text-faint); font-weight: 400; margin-left: 4px; }
+      .modal select, .modal input {
+        background: var(--bg-2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 9px 11px;
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+        transition: border-color var(--duration) var(--ease);
+      }
+      .modal select:focus, .modal input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+      .modal .row { display: flex; gap: 8px; }
+      .modal .row > * { flex: 1; }
+      .modal .actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 16px;
+      }
+      .modal .actions .spacer { flex: 1; }
+      .modal button {
+        padding: 8px 14px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--bg-2);
+        color: var(--text);
+        font-size: 12.5px;
+        transition: all var(--duration) var(--ease);
+      }
+      .modal button:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+      .modal button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+      .modal button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+      .modal button.good { background: var(--good); border-color: var(--good); color: #052e1e; }
+      .modal button.bad { background: var(--bad); border-color: var(--bad); color: #2b0a0a; }
+      .modal button.ghost { background: transparent; }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 14px;
+      }
+      .toggle-row .text { flex: 1; }
+      .toggle-row label { display: block; color: var(--text); font-size: 13px; font-weight: 500; }
+      .toggle-row .caption { color: var(--text-mute); font-size: 11px; margin-top: 2px; }
+      .toggle-switch {
+        position: relative;
+        width: 34px; height: 20px;
+        background: var(--bg-3);
+        border-radius: 999px;
+        cursor: pointer;
+        transition: background var(--duration) var(--ease);
+        flex-shrink: 0;
+      }
+      .toggle-switch::after {
+        content: '';
+        position: absolute;
+        top: 2px; left: 2px;
+        width: 16px; height: 16px;
+        background: var(--text-mute);
+        border-radius: 50%;
+        transition: all var(--duration) var(--ease);
+      }
+      .toggle-switch.on { background: var(--accent); }
+      .toggle-switch.on::after {
+        left: 16px;
+        background: white;
+      }
+
+      code { background: var(--bg-3); padding: 1px 5px; border-radius: 3px; font-size: 12px; font-family: var(--mono); }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="top">
+        <div class="brand">
+          <div class="logo"></div>
+          <h1>Travel Concierge</h1>
+        </div>
+        <span class="pill" id="model-pill">—</span>
+        <span class="pill" id="session-pill">—</span>
+        <span class="pill streaming" id="status-pill" style="display:none">streaming</span>
+        <div class="spacer"></div>
+        <button class="icon-btn" onclick="openSettings()">⚙ <span>Settings</span></button>
+        <button class="icon-btn" onclick="clearSession()">Clear</button>
+      </header>
+
+      <main class="stream" id="stream">
+        <div id="hero" class="hero">
+          <div class="tagline">
+            <span class="kicker">Multi-agent demo</span>
+            <h2>A supervisor routing through three specialists</h2>
+            <p>Pick a scenario to watch the graph in motion, or type your own below.</p>
+          </div>
+          <div class="hero-grid" id="hero-grid"></div>
+        </div>
+        <div class="stream-inner" id="stream-inner"></div>
+      </main>
+
+      <div class="input-wrap">
+        <div class="input-inner">
+          <div class="input-row">
+            <textarea
+              id="input"
+              class="prompt"
+              placeholder="Message the concierge…"
+              rows="1"
+            ></textarea>
+            <button class="btn-send" id="send-btn" onclick="send()">Send</button>
+          </div>
+          <div class="input-meta">
+            <span id="input-hint">Press <span class="kbd">Enter</span> to send · <span class="kbd">Shift</span>+<span class="kbd">Enter</span> for newline</span>
+            <span>Powered by LangGraph</span>
+          </div>
+        </div>
+      </div>
+
+      <aside>
+        <div class="panel">
+          <h3>Session cost</h3>
+          <div class="cost-big" id="cost-big">—</div>
+          <div class="cost-sub" id="cost-sub">no calls yet</div>
+        </div>
+
+        <div class="panel">
+          <h3>
+            Agents
+            <span class="action" onclick="openSettings()">Edit default</span>
+          </h3>
+          <div class="agent-list" id="agent-list"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Delegation mode</h3>
+          <div class="seg" id="delegation-mode" role="tablist">
+            <button class="seg-btn" data-mode="full-context" role="tab">Full</button>
+            <button class="seg-btn" data-mode="focused" role="tab">Focused</button>
+            <button class="seg-btn" data-mode="rewritten" role="tab">Rewritten</button>
+          </div>
+          <div class="mode-caption" id="mode-caption"></div>
+        </div>
+
+        <div class="panel" id="mini-gallery-panel" style="display:none">
+          <h3>Try another</h3>
+          <div class="mini-gallery" id="mini-gallery"></div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Settings modal -->
+    <div class="overlay hidden" id="settings-overlay">
+      <div class="modal">
+        <h2>Default model</h2>
+        <div class="sub">
+          Applied to every agent by default. Override individual agents
+          from the <strong>Agents</strong> panel.
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Provider</label>
+            <select id="cfg-provider" onchange="refreshModelOptions('cfg')"></select>
+          </div>
+          <div class="field">
+            <label>Model <span class="hint">· suggestions shown</span></label>
+            <input id="cfg-model" list="cfg-model-suggestions" placeholder="gpt-4o, grok-4, …" autocomplete="off" />
+            <datalist id="cfg-model-suggestions"></datalist>
+          </div>
+        </div>
+        <div class="field">
+          <label>API key <span id="cfg-key-hint" class="hint"></span></label>
+          <input type="password" id="cfg-apikey" placeholder="leave empty to use server env" />
+        </div>
+        <div class="field">
+          <label>Temperature</label>
+          <input type="number" id="cfg-temp" min="0" max="2" step="0.1" value="0.2" />
+        </div>
+        <div class="actions">
+          <button class="ghost" onclick="clearPersistedKey()">Forget key</button>
+          <div class="spacer"></div>
+          <button onclick="closeSettings()">Cancel</button>
+          <button class="primary" onclick="saveSettings()">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Per-agent override modal -->
+    <div class="overlay hidden" id="agent-cfg-overlay">
+      <div class="modal">
+        <h2 id="agent-cfg-title">Configure agent</h2>
+        <div class="sub" id="agent-cfg-sub">Give this agent its own model or inherit from the default.</div>
+        <div class="toggle-row">
+          <div class="text">
+            <label>Use default configuration</label>
+            <div class="caption">When on, this agent inherits the default model.</div>
+          </div>
+          <div class="toggle-switch" id="agent-cfg-inherit" onclick="toggleInherit()"></div>
+        </div>
+        <div id="agent-cfg-fields">
+          <div class="row">
+            <div class="field">
+              <label>Provider</label>
+              <select id="aov-provider" onchange="refreshModelOptions('aov')"></select>
+            </div>
+            <div class="field">
+              <label>Model</label>
+              <input id="aov-model" list="aov-model-suggestions" autocomplete="off" />
+              <datalist id="aov-model-suggestions"></datalist>
+            </div>
+          </div>
+          <div class="field">
+            <label>API key <span id="aov-key-hint" class="hint"></span></label>
+            <input type="password" id="aov-apikey" placeholder="empty = reuse default / env" />
+          </div>
+          <div class="field">
+            <label>Temperature <span class="hint">· empty = inherit</span></label>
+            <input type="number" id="aov-temp" min="0" max="2" step="0.1" placeholder="0.2" />
+          </div>
+        </div>
+        <div class="actions">
+          <button onclick="closeAgentOverride()">Cancel</button>
+          <div class="spacer"></div>
+          <button class="primary" onclick="saveAgentOverride()">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HITL modal -->
+    <div class="overlay hidden" id="hitl-overlay">
+      <div class="modal">
+        <h2>Human approval required</h2>
+        <div class="sub" id="hitl-reason"></div>
+        <div class="tool-card" style="width:auto">
+          <details open>
+            <summary style="padding: 9px 12px">payload</summary>
+            <div style="padding: 0 12px 12px;">
+              <pre class="io" id="hitl-details"></pre>
+            </div>
+          </details>
+        </div>
+        <div class="field" style="margin-top:12px">
+          <label>Notes (optional)</label>
+          <input id="hitl-notes" placeholder="Why approve / reject?" />
+        </div>
+        <div class="actions">
+          <button class="bad" onclick="resumeHitl('reject')">Reject</button>
+          <div class="spacer"></div>
+          <button class="good" onclick="resumeHitl('approve')">Approve</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      'use strict';
+
+      const STORAGE_KEY = 'lc-demo-config-v3';
+
+      const state = {
+        sessionId: 'demo-' + Math.random().toString(36).slice(2, 8),
+        es: null,
+        currentMsgEl: null,
+        currentMsgAgent: null,
+        activeAgent: null, // agent currently owning tool calls and thinking
+        thinkingEl: null,
+        toolEls: new Map(),
+        toolStartTimes: new Map(),
+        catalogue: {
+          providers: [],
+          config: { default: {}, overrides: {} },
+          supervisors: [],
+          agents: [],
+          pricedModels: [],
+          orchestration: { taskDelegation: 'focused' },
+        },
+        pendingInterrupt: null,
+        editingAgent: null,
+        hasMessages: false,
+      };
+      document.getElementById('session-pill').textContent = state.sessionId;
+
+      // Prompt gallery
+      const GALLERY = [
+        {
+          group: 'Single agent',
+          items: [
+            { title: 'Weather now', preview: 'what\'s the weather in Tokyo right now?', prompt: 'what\'s the weather in Tokyo right now?', tags: ['WeatherAgent'] },
+            { title: '3-day forecast', preview: 'forecast for Reykjavik', prompt: 'give me a 3-day forecast for Reykjavik', tags: ['WeatherAgent'] },
+            { title: 'Visa rules', preview: 'Japan visa for a French citizen', prompt: 'do I need a visa to visit Japan as a French citizen?', tags: ['KnowledgeAgent'] },
+          ],
+        },
+        {
+          group: 'Multi-agent routing',
+          items: [
+            { title: 'Plan a weekend', preview: 'weather + hotel + tips for Lisbon', prompt: 'I\'m going to Lisbon next weekend — check the weather, find me a well-rated hotel, and any tips I should know.', tags: ['WeatherAgent', 'BookingAgent', 'KnowledgeAgent'] },
+            { title: 'Compare cities', preview: 'Paris vs Berlin this weekend', prompt: 'compare the weather in Paris and Berlin this weekend, then suggest which is better for a city break.', tags: ['WeatherAgent', 'KnowledgeAgent'] },
+            { title: 'Kyoto mid-April', preview: 'weather, hotels, visa — 3 days', prompt: 'I have 3 days in Kyoto in mid-April. Check the weather, recommend neighborhoods with hotels, and give me visa advice for a US citizen.', tags: ['WeatherAgent', 'BookingAgent', 'KnowledgeAgent'] },
+          ],
+        },
+        {
+          group: 'Human-in-the-loop',
+          items: [
+            { title: 'Book a hotel', preview: 'requires human approval', prompt: 'book me a 2-night stay at a nice mid-range hotel in Rome for next weekend.', tags: ['BookingAgent', 'HITL'] },
+          ],
+        },
+      ];
+
+      function renderHero() {
+        const el = document.getElementById('hero-grid');
+        const html = [];
+        for (const g of GALLERY) {
+          html.push(`<div class="hero-group">${escapeHtml(g.group)}</div>`);
+          for (const it of g.items) {
+            const tags = (it.tags || []).map((t) => `<span class="tag-chip bg-a-${t.toLowerCase()}">${escapeHtml(t)}</span>`).join('');
+            html.push(`
+              <button class="prompt-card" data-prompt="${escapeAttr(it.prompt)}">
+                <span class="title">${escapeHtml(it.title)}</span>
+                <span class="preview">${escapeHtml(it.preview)}</span>
+                ${tags ? `<div class="tags">${tags}</div>` : ''}
+              </button>
+            `);
+          }
+        }
+        el.innerHTML = html.join('');
+        el.querySelectorAll('.prompt-card').forEach((card) => {
+          card.addEventListener('click', () => {
+            const p = card.getAttribute('data-prompt');
+            const input = document.getElementById('input');
+            input.value = p;
+            input.focus();
+            autosize();
+          });
+        });
+      }
+
+      function renderMiniGallery() {
+        // Flatten a few representative prompts for the sidebar
+        const flat = [];
+        for (const g of GALLERY) for (const it of g.items) flat.push(it);
+        const el = document.getElementById('mini-gallery');
+        el.innerHTML = flat.map((it) => `
+          <button class="mini-prompt" data-prompt="${escapeAttr(it.prompt)}">
+            <span class="t">${escapeHtml(it.title)}</span>
+            <span class="p">${escapeHtml(it.preview)}</span>
+          </button>
+        `).join('');
+        el.querySelectorAll('.mini-prompt').forEach((card) => {
+          card.addEventListener('click', () => {
+            const p = card.getAttribute('data-prompt');
+            const input = document.getElementById('input');
+            input.value = p;
+            input.focus();
+            autosize();
+          });
+        });
+      }
+
+      function showHero(show) {
+        document.getElementById('hero').style.display = show ? 'block' : 'none';
+        document.getElementById('mini-gallery-panel').style.display = show ? 'none' : 'block';
+      }
+
+      // ---- Storage ----
+      function readPersistedConfig() { try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null'); } catch { return null; } }
+      function persistConfig(cfg) { try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); } catch { /* ignore */ } }
+
+      // ---- Catalogue ----
+      async function loadCatalogue() {
+        const res = await fetch('/api/catalogue');
+        state.catalogue = await res.json();
+        const saved = readPersistedConfig();
+        if (saved?.default?.provider && saved?.default?.modelName) {
+          const r = await fetch('/api/config', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(saved.default),
+          });
+          if (r.ok) state.catalogue.config.default = await r.json();
+        }
+        refreshModelPill();
+        renderAgentList();
+        renderDelegationMode();
+        populateSettings();
+      }
+
+      function refreshModelPill() {
+        const d = state.catalogue.config.default;
+        document.getElementById('model-pill').textContent = (d.provider || '—') + ' · ' + (d.modelName || '—');
+      }
+
+      // -------------------- Delegation mode selector --------------------
+      const MODE_CAPTIONS = {
+        'full-context':
+          'Cheapest. Worker sees the full conversation — may overreach on multi-part requests.',
+        'focused':
+          'Recommended. Worker sees the full conversation plus a per-turn reminder to stay in its lane.',
+        'rewritten':
+          'Strongest focus. Supervisor rewrites the sub-task via an extra LLM call (~2× cost / latency).',
+      };
+
+      function renderDelegationMode() {
+        const current = state.catalogue.orchestration?.taskDelegation || 'focused';
+        document.querySelectorAll('.seg-btn').forEach((btn) => {
+          btn.classList.toggle('active', btn.dataset.mode === current);
+        });
+        document.getElementById('mode-caption').textContent =
+          MODE_CAPTIONS[current] || '';
+      }
+
+      function wireDelegationMode() {
+        document.querySelectorAll('#delegation-mode .seg-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const mode = btn.dataset.mode;
+            const res = await fetch('/api/supervisor/mode', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ taskDelegation: mode }),
+            });
+            if (!res.ok) return;
+            state.catalogue.orchestration = { taskDelegation: mode };
+            renderDelegationMode();
+            // Clear the chat so the user can see a clean comparison run.
+            await clearSession();
+          });
+        });
+      }
+
+      function allAgents() {
+        const sup = (state.catalogue.supervisors || []).map((a) => ({ ...a, role: 'supervisor' }));
+        const wor = (state.catalogue.agents || []).map((a) => ({ ...a, role: 'worker' }));
+        return [...sup, ...wor];
+      }
+
+      function toolToAgent(toolName) {
+        for (const a of state.catalogue.agents || []) {
+          if ((a.tools || []).includes(toolName)) return a.name;
+        }
+        return null;
+      }
+
+      function effectiveConfig(agentName) {
+        const d = state.catalogue.config.default;
+        const o = (state.catalogue.config.overrides || {})[agentName] || {};
+        return { ...d, ...o, _override: Object.keys(o).length > 0 };
+      }
+
+      function renderAgentList(usageData) {
+        const el = document.getElementById('agent-list');
+        const d = state.catalogue.config.default;
+        const rows = [];
+
+        rows.push(`
+          <div class="agent-item is-default">
+            <div class="info">
+              <div class="name-row">
+                Default
+                <span class="role">shared</span>
+              </div>
+              <div class="meta">${escapeHtml(d.provider || '—')} · ${escapeHtml(d.modelName || '—')}</div>
+            </div>
+            <button class="edit-btn" style="opacity:1; position:static;" onclick="openSettings()">Edit</button>
+          </div>
+        `);
+
+        const byAgent = (usageData && usageData.byAgent) || [];
+        const unpriced = new Set((usageData && usageData.pricing?.unknownModels) || []);
+        const callMap = new Map();
+        for (const b of byAgent) callMap.set(b.agent, b);
+
+        for (const a of allAgents()) {
+          const eff = effectiveConfig(a.name);
+          const stats = callMap.get(a.name);
+          const liveClass = state.activeAgent === a.name ? 'active' : '';
+          const costStr = stats
+            ? (unpriced.has(stats.model) ? 'n/a' : '$' + formatCost(stats.costUsd))
+            : '';
+          const tokensStr = stats ? stats.totalTokens.toLocaleString() + ' t' : '';
+          rows.push(`
+            <div class="agent-item a-${a.name.toLowerCase()} ${liveClass}">
+              <span class="dot-live"></span>
+              <div class="info">
+                <div class="name-row">
+                  <span class="a-${a.name.toLowerCase()}">${escapeHtml(a.name)}</span>
+                  ${eff._override ? '<span class="badge-override">override</span>' : ''}
+                  <span class="role">${a.role}</span>
+                </div>
+                <div class="meta">${escapeHtml(eff.provider || '—')} · ${escapeHtml(eff.modelName || '—')}</div>
+              </div>
+              <div class="stats">
+                ${stats ? `<span class="cost">${costStr}</span><span class="tokens">${tokensStr}</span>` : '<span style="color: var(--text-faint); font-size: 10.5px">idle</span>'}
+              </div>
+              <button class="edit-btn" data-a="${escapeAttr(a.name)}" onclick="openAgentOverride(this.dataset.a)">Edit</button>
+            </div>
+          `);
+        }
+
+        el.innerHTML = rows.join('');
+      }
+
+      function populateSettings() {
+        const provSel = document.getElementById('cfg-provider');
+        provSel.innerHTML = state.catalogue.providers
+          .map((p) => `<option value="${escapeAttr(p.provider)}">${escapeHtml(p.label)}</option>`).join('');
+        provSel.value = state.catalogue.config.default.provider;
+        refreshModelOptions('cfg');
+        const aov = document.getElementById('aov-provider');
+        aov.innerHTML = state.catalogue.providers
+          .map((p) => `<option value="${escapeAttr(p.provider)}">${escapeHtml(p.label)}</option>`).join('');
+      }
+
+      function refreshModelOptions(prefix) {
+        const provSel = document.getElementById(prefix + '-provider');
+        const providerId = provSel.value;
+        const p = state.catalogue.providers.find((x) => x.provider === providerId);
+        if (!p) return;
+        const datalist = document.getElementById(prefix + '-model-suggestions');
+        datalist.innerHTML = p.models
+          .map((m) => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.label)}${m.notes ? ' — ' + escapeHtml(m.notes) : ''}</option>`)
+          .join('');
+        const modelInput = document.getElementById(prefix + '-model');
+        if (prefix === 'cfg' && state.catalogue.config.default.provider === providerId) {
+          modelInput.value = state.catalogue.config.default.modelName;
+        } else if (prefix === 'cfg') {
+          modelInput.value = p.models[0]?.id || '';
+        }
+        const hint = document.getElementById(prefix + '-key-hint');
+        if (hint) hint.textContent = '· ' + p.apiKeyHint;
+      }
+
+      // ---- Settings modal ----
+      function openSettings() {
+        const saved = readPersistedConfig();
+        document.getElementById('cfg-apikey').value = saved?.default?.apiKey || '';
+        document.getElementById('cfg-temp').value = state.catalogue.config.default.temperature ?? 0.2;
+        document.getElementById('settings-overlay').classList.remove('hidden');
+      }
+      function closeSettings() { document.getElementById('settings-overlay').classList.add('hidden'); }
+
+      async function saveSettings() {
+        const provider = document.getElementById('cfg-provider').value;
+        const modelName = document.getElementById('cfg-model').value.trim();
+        if (!modelName) { alert('Please enter a model name.'); return; }
+        const apiKey = document.getElementById('cfg-apikey').value || undefined;
+        const temperature = parseFloat(document.getElementById('cfg-temp').value || '0.2');
+        const body = { provider, modelName, apiKey, temperature };
+        const res = await fetch('/api/config', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        state.catalogue.config.default = await res.json();
+        const saved = readPersistedConfig() || {};
+        saved.default = body;
+        persistConfig(saved);
+        refreshModelPill();
+        renderAgentList();
+        closeSettings();
+      }
+
+      function clearPersistedKey() {
+        const saved = readPersistedConfig() || {};
+        if (saved.default) delete saved.default.apiKey;
+        persistConfig(saved);
+        document.getElementById('cfg-apikey').value = '';
+      }
+
+      // ---- Agent override modal ----
+      function openAgentOverride(name) {
+        state.editingAgent = name;
+        const eff = effectiveConfig(name);
+        const has = eff._override;
+        document.getElementById('agent-cfg-title').textContent = 'Configure ' + name;
+        document.getElementById('agent-cfg-sub').textContent =
+          has ? 'Currently overriding the default. Toggle off to inherit.'
+              : 'Inheriting the default. Toggle on to override.';
+        setInherit(!has);
+        const o = (state.catalogue.config.overrides || {})[name] || {};
+        document.getElementById('aov-provider').value = o.provider || eff.provider;
+        refreshModelOptions('aov');
+        document.getElementById('aov-model').value = o.modelName || eff.modelName;
+        document.getElementById('aov-apikey').value = o.apiKey || '';
+        document.getElementById('aov-temp').value = o.temperature ?? '';
+        document.getElementById('agent-cfg-overlay').classList.remove('hidden');
+      }
+      function closeAgentOverride() {
+        document.getElementById('agent-cfg-overlay').classList.add('hidden');
+        state.editingAgent = null;
+      }
+      function setInherit(on) {
+        const el = document.getElementById('agent-cfg-inherit');
+        el.classList.toggle('on', !!on);
+        const fields = document.getElementById('agent-cfg-fields');
+        fields.style.opacity = on ? '0.4' : '1';
+        fields.style.pointerEvents = on ? 'none' : 'auto';
+      }
+      function toggleInherit() {
+        const el = document.getElementById('agent-cfg-inherit');
+        setInherit(!el.classList.contains('on'));
+      }
+      async function saveAgentOverride() {
+        const name = state.editingAgent;
+        if (!name) return;
+        const inherit = document.getElementById('agent-cfg-inherit').classList.contains('on');
+        if (inherit) {
+          await fetch('/api/config/agent/' + encodeURIComponent(name), { method: 'DELETE' });
+          delete state.catalogue.config.overrides[name];
+        } else {
+          const body = {
+            provider: document.getElementById('aov-provider').value,
+            modelName: document.getElementById('aov-model').value.trim(),
+            apiKey: document.getElementById('aov-apikey').value || undefined,
+          };
+          const tempRaw = document.getElementById('aov-temp').value;
+          if (tempRaw !== '') body.temperature = parseFloat(tempRaw);
+          if (!body.modelName) { alert('Please enter a model name.'); return; }
+          const r = await fetch('/api/config/agent/' + encodeURIComponent(name), {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          state.catalogue.config.overrides[name] = await r.json();
+        }
+        renderAgentList();
+        closeAgentOverride();
+      }
+
+      // ---- Clear ----
+      async function clearSession() {
+        await fetch('/api/sessions/' + state.sessionId + '/clear', { method: 'POST' });
+        await fetch('/api/sessions/clear-all', { method: 'POST' });
+        document.getElementById('stream-inner').innerHTML = '';
+        state.hasMessages = false;
+        state.activeAgent = null;
+        showHero(true);
+        refreshUsage();
+      }
+
+      // ---- Streaming render ----
+      function ensureConversationOpen() {
+        if (!state.hasMessages) {
+          state.hasMessages = true;
+          showHero(false);
+        }
+      }
+
+      function appendUser(text) {
+        ensureConversationOpen();
+        const row = document.createElement('div');
+        row.className = 'msg-row user';
+        row.innerHTML = `<div class="msg user"></div>`;
+        row.querySelector('.msg').textContent = text;
+        document.getElementById('stream-inner').appendChild(row);
+        scrollBottom();
+      }
+
+      function agentInitials(name) {
+        if (!name) return '··';
+        // "WeatherAgent" → "WA", "TravelConcierge" → "TC", "BookingAgent" → "BA"
+        const parts = name.replace(/Agent$/, '').match(/[A-Z][a-z]*|[a-z]+/g) || [name];
+        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+        return name.slice(0, 2).toUpperCase();
+      }
+
+      function startAgentBubble(agent) {
+        const row = document.createElement('div');
+        const supervisor = isSupervisor(agent);
+        row.className = 'msg-row agent ' + (supervisor ? 'primary' : 'step');
+        const key = (agent || 'unknown').toLowerCase();
+        const label = supervisor ? 'Final reply · ' + agent : agent + ' (worker)';
+        row.innerHTML = `
+          <div class="msg agent">
+            <div class="avatar bg-a-${key}">${escapeHtml(agentInitials(agent))}</div>
+            <div class="bubble a-${key}">
+              <div class="who a-${key}">${escapeHtml(label)}</div>
+              <span class="content"></span>
+            </div>
+          </div>`;
+        document.getElementById('stream-inner').appendChild(row);
+        row.dataset.firstToken = '1';
+        return row;
+      }
+
+      function showThinking(label) {
+        clearThinking();
+        const el = document.createElement('div');
+        el.className = 'event thinking';
+        el.innerHTML = `<span class="icon-circle">◌</span><span>${escapeHtml(label)}<span class="dots"></span></span>`;
+        document.getElementById('stream-inner').appendChild(el);
+        state.thinkingEl = el;
+        scrollBottom();
+      }
+      function clearThinking() {
+        if (state.thinkingEl) { state.thinkingEl.remove(); state.thinkingEl = null; }
+      }
+
+      function addHandoff(from, to) {
+        clearThinking();
+        const el = document.createElement('div');
+        el.className = 'event handoff';
+        el.innerHTML = `
+          <span class="icon-circle">↪</span>
+          <span>
+            <strong class="a-${from.toLowerCase()}">${escapeHtml(from)}</strong>
+            <span class="arrow">→</span>
+            <strong class="a-${to.toLowerCase()}">${escapeHtml(to)}</strong>
+          </span>`;
+        document.getElementById('stream-inner').appendChild(el);
+        state.activeAgent = to;
+        renderAgentList();
+        showThinking(to + ' working');
+      }
+
+      function resolveActiveAgent(evt) {
+        // Prefer explicit metadata (future-proof), then any active agent we track.
+        if (evt && evt.agent) return evt.agent;
+        return state.activeAgent || 'unknown';
+      }
+
+      function onToolStart(evt) {
+        clearThinking();
+        // A tool's owning agent is the ground truth — the supervisor calls
+        // worker tools directly, so state.activeAgent would wrongly attribute
+        // every call to the supervisor.
+        const agent = toolToAgent(evt.tool) || resolveActiveAgent(evt);
+        if (agent && agent !== state.activeAgent) {
+          state.activeAgent = agent;
+          renderAgentList();
+        }
+        const key = agent.toLowerCase();
+        const el = document.createElement('div');
+        el.className = 'tool-card';
+        const runId = evt.runId || evt.tool + ':' + Math.random();
+        el.innerHTML = `
+          <div class="head">
+            <span class="tool-ico">⚒</span>
+            <span class="agent-badge bg-a-${key}">${escapeHtml(agent)}</span>
+            <span class="name">${escapeHtml(evt.tool)}</span>
+            <span class="status">running</span>
+          </div>
+          <div class="progress"><div style="width:5%"></div></div>
+          <details>
+            <summary>input / output</summary>
+            <span class="io-label">input</span>
+            <pre class="io">${escapeHtml(stringify(evt.input))}</pre>
+          </details>`;
+        document.getElementById('stream-inner').appendChild(el);
+        state.toolEls.set(runId, el);
+        state.toolStartTimes.set(runId, Date.now());
+        scrollBottom();
+      }
+
+      function onToolProgress(evt) {
+        for (const el of state.toolEls.values()) {
+          const name = el.querySelector('.name');
+          if (name && name.textContent === evt.tool) {
+            const bar = el.querySelector('.progress > div');
+            if (bar && typeof evt.progress === 'number') bar.style.width = Math.min(100, evt.progress) + '%';
+            if (evt.message) el.querySelector('.status').textContent = evt.message;
+            break;
+          }
+        }
+      }
+
+      function onToolEnd(evt) {
+        let match = null;
+        const runId = evt.runId;
+        if (runId && state.toolEls.has(runId)) match = state.toolEls.get(runId);
+        if (!match) {
+          for (const el of state.toolEls.values()) {
+            const name = el.querySelector('.name');
+            if (name && name.textContent === evt.tool) { match = el; break; }
+          }
+        }
+        if (!match) return;
+        const startTime = runId ? state.toolStartTimes.get(runId) : null;
+        const elapsed = startTime ? Date.now() - startTime : null;
+        const status = match.querySelector('.status');
+        status.textContent = elapsed != null ? 'done · ' + (elapsed / 1000).toFixed(1) + 's' : 'done';
+        status.classList.add('done');
+        match.querySelector('.progress > div').style.width = '100%';
+        const details = match.querySelector('details');
+        const outLabel = document.createElement('span');
+        outLabel.className = 'io-label';
+        outLabel.textContent = 'output';
+        details.appendChild(outLabel);
+        const outPre = document.createElement('pre');
+        outPre.className = 'io';
+        outPre.textContent = stringify(evt.output);
+        details.appendChild(outPre);
+      }
+
+      // LangGraph names the inner react-agent node "agent" (and similar
+      // generic tokens show up as "tools"/"model"). Those aren't meaningful
+      // labels — fall back to whichever agent the supervisor handed off to.
+      function resolveTokenAgent(raw) {
+        // 'synthesize' is the supervisor's final-answer node — attribute
+        // those tokens to the supervisor, not to a fake "synthesize" agent.
+        const generic = new Set(['agent', 'tools', 'model', 'chain', 'LangGraph', 'synthesize', 'router', '']);
+        if (!raw || generic.has(raw)) return state.activeAgent || (state.catalogue.supervisors[0]?.name) || 'unknown';
+        return raw;
+      }
+
+      function isSupervisor(agentName) {
+        return (state.catalogue.supervisors || []).some((s) => s.name === agentName);
+      }
+
+      function onToken(evt) {
+        clearThinking();
+        const agent = resolveTokenAgent(evt.agent);
+        if (!state.currentMsgEl || state.currentMsgAgent !== agent) {
+          state.currentMsgEl = startAgentBubble(agent);
+          state.currentMsgAgent = agent;
+          state.activeAgent = agent;
+          renderAgentList();
+        }
+        let raw = state.currentMsgEl.dataset.raw || '';
+        raw += (evt.content || '');
+        // Trim leading whitespace once so the bubble doesn't open on blank lines.
+        if (state.currentMsgEl.dataset.firstToken === '1') {
+          const trimmed = raw.replace(/^[\s\n]+/, '');
+          if (trimmed !== raw) raw = trimmed;
+          if (raw.length > 0) state.currentMsgEl.dataset.firstToken = '0';
+        }
+        state.currentMsgEl.dataset.raw = raw;
+        const content = state.currentMsgEl.querySelector('.content');
+        content.innerHTML = renderMarkdown(raw);
+        scrollBottom();
+      }
+
+      function onHandoff(evt) {
+        state.currentMsgEl = null;
+        state.currentMsgAgent = null;
+        addHandoff(evt.from, evt.to);
+      }
+
+      function onInterrupt(evt) {
+        clearThinking();
+        state.pendingInterrupt = evt;
+        document.getElementById('hitl-reason').textContent = evt.reason;
+        document.getElementById('hitl-details').textContent = stringify(evt.payload);
+        document.getElementById('hitl-overlay').classList.remove('hidden');
+      }
+
+      async function resumeHitl(decision) {
+        const notes = document.getElementById('hitl-notes').value;
+        const threadId = state.pendingInterrupt?.threadId || state.sessionId;
+        document.getElementById('hitl-overlay').classList.add('hidden');
+        const sys = document.createElement('div');
+        sys.className = 'event thinking';
+        sys.innerHTML = `<span class="icon-circle">✎</span><span>Human ${decision === 'approve' ? 'approved' : 'rejected'}${notes ? ' — ' + escapeHtml(notes) : ''}</span>`;
+        document.getElementById('stream-inner').appendChild(sys);
+        const res = await fetch('/api/chat/resume', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ threadId, decision, notes }),
+        });
+        const { events } = await res.json();
+        for (const e of events) {
+          if (e.type === 'complete' && e.content) {
+            const row = startAgentBubble(state.catalogue.supervisors[0]?.name || 'TravelConcierge');
+            row.querySelector('.content').innerHTML = renderMarkdown(e.content);
+          }
+        }
+        refreshUsage();
+      }
+
+      function onComplete() {
+        clearThinking();
+        state.es?.close();
+        state.es = null;
+        state.currentMsgEl = null;
+        state.currentMsgAgent = null;
+        state.activeAgent = null;
+        document.getElementById('send-btn').disabled = false;
+        document.getElementById('status-pill').style.display = 'none';
+        renderAgentList();
+        refreshUsage();
+      }
+
+      function onBackendError(data) {
+        clearThinking();
+        appendError(data?.error || data?.raw || 'stream failed');
+        state.es?.close();
+        state.es = null;
+        document.getElementById('send-btn').disabled = false;
+        document.getElementById('status-pill').style.display = 'none';
+      }
+
+      function appendError(msg) {
+        const row = document.createElement('div');
+        row.className = 'msg-row agent';
+        row.innerHTML = `<div class="msg agent"><div class="avatar" style="background: rgba(248,113,113,0.15); color: var(--bad);">!</div><div class="bubble" style="border-color: var(--bad);"><div class="who" style="color: var(--bad);">error</div><span>${escapeHtml(String(msg))}</span></div></div>`;
+        document.getElementById('stream-inner').appendChild(row);
+        scrollBottom();
+      }
+
+      async function send() {
+        const input = document.getElementById('input');
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = '';
+        autosize();
+        document.getElementById('send-btn').disabled = true;
+        document.getElementById('status-pill').style.display = 'inline-flex';
+        appendUser(text);
+        const supName = state.catalogue.supervisors[0]?.name || 'Supervisor';
+        state.activeAgent = supName;
+        renderAgentList();
+        showThinking(supName + ' routing');
+
+        const url = '/api/chat/stream?q=' + encodeURIComponent(text) + '&sessionId=' + encodeURIComponent(state.sessionId);
+        const es = new EventSource(url);
+        state.es = es;
+        state.currentMsgEl = null;
+        state.currentMsgAgent = null;
+        state.toolEls = new Map();
+        state.toolStartTimes = new Map();
+
+        const parse = (e) => { try { return JSON.parse(e.data); } catch { return { raw: e.data }; } };
+        es.addEventListener('token',         (e) => onToken(parse(e)));
+        es.addEventListener('tool-start',    (e) => onToolStart(parse(e)));
+        es.addEventListener('tool-end',      (e) => onToolEnd(parse(e)));
+        es.addEventListener('tool-progress', (e) => onToolProgress(parse(e)));
+        es.addEventListener('agent-handoff', (e) => onHandoff(parse(e)));
+        es.addEventListener('interrupt',     (e) => onInterrupt(parse(e)));
+        es.addEventListener('complete',      (e) => onComplete());
+        es.addEventListener('error',         (e) => onBackendError(parse(e)));
+        es.onerror = () => {
+          if (state.es && state.es.readyState === EventSource.CLOSED) {
+            document.getElementById('send-btn').disabled = false;
+            document.getElementById('status-pill').style.display = 'none';
+            return;
+          }
+          appendError('Stream interrupted.');
+          state.es?.close();
+          state.es = null;
+          document.getElementById('send-btn').disabled = false;
+          document.getElementById('status-pill').style.display = 'none';
+        };
+      }
+
+      // ---- Usage / cost ----
+      async function refreshUsage() {
+        try {
+          const res = await fetch('/api/usage');
+          const data = await res.json();
+          renderCost(data);
+          renderAgentList(data);
+        } catch { /* ignore */ }
+      }
+
+      function renderCost(data) {
+        const big = document.getElementById('cost-big');
+        const sub = document.getElementById('cost-sub');
+        const totals = data.totals;
+        const pricing = data.pricing || {};
+
+        if (totals.totalTokens === 0) {
+          big.className = 'cost-big unknown';
+          big.textContent = '—';
+          sub.textContent = 'no calls yet';
+          return;
+        }
+        if (pricing.computable === false) {
+          big.className = 'cost-big unknown';
+          big.textContent = 'n/a';
+          sub.textContent = 'no pricing for: ' + (pricing.unknownModels || []).join(', ');
+        } else if (pricing.allFree) {
+          big.className = 'cost-big free';
+          big.textContent = 'free';
+          sub.textContent = 'local / free-tier models';
+        } else {
+          big.className = 'cost-big';
+          big.textContent = '$' + formatCost(totals.costUsd);
+          sub.textContent = totals.totalTokens.toLocaleString() + ' tokens · ' +
+            totals.promptTokens.toLocaleString() + ' in / ' +
+            totals.completionTokens.toLocaleString() + ' out';
+        }
+      }
+
+      function formatCost(c) {
+        if (c === 0) return '0.0000';
+        if (c < 0.0001) return c.toFixed(6);
+        if (c < 1) return c.toFixed(4);
+        return c.toFixed(3);
+      }
+
+      // ---- Helpers ----
+      function scrollBottom() {
+        const c = document.getElementById('stream');
+        c.scrollTop = c.scrollHeight;
+      }
+      function escapeHtml(s) {
+        return (s == null ? '' : String(s)).replace(/[&<>"']/g, (c) => (
+          { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+        ));
+      }
+      function escapeAttr(s) { return escapeHtml(s); }
+
+      // Minimal streaming-safe markdown renderer.
+      // Supports: headings, paragraphs, line breaks, bold/italic, inline
+      // code, fenced code blocks, unordered/ordered lists, blockquotes,
+      // links. Tolerates in-flight unterminated emphasis / fences without
+      // crashing (re-renders on every token).
+      function renderMarkdown(src) {
+        if (!src) return '';
+
+        // 1) Pull out fenced code blocks first so their contents bypass
+        //    inline substitutions. Use a placeholder token.
+        const codeBlocks = [];
+        src = src.replace(/```([a-zA-Z0-9_-]*)\n?([\s\S]*?)(```|$)/g, (_m, _lang, body) => {
+          codeBlocks.push(body);
+          return '\u0000CODE' + (codeBlocks.length - 1) + '\u0000';
+        });
+
+        const escape = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+        src = escape(src);
+
+        // 2) Block-level: split on blank lines into blocks.
+        const blocks = src.split(/\n{2,}/);
+        const out = [];
+        for (let block of blocks) {
+          if (!block.trim()) continue;
+
+          // Fenced code block placeholder
+          const codeMatch = block.match(/^\u0000CODE(\d+)\u0000$/);
+          if (codeMatch) {
+            const body = codeBlocks[+codeMatch[1]] || '';
+            out.push('<pre><code>' + escape(body) + '</code></pre>');
+            continue;
+          }
+
+          // Heading
+          const h = block.match(/^(#{1,3})\s+(.+)$/);
+          if (h) {
+            const level = h[1].length;
+            out.push('<h' + level + '>' + inline(h[2]) + '</h' + level + '>');
+            continue;
+          }
+
+          // Blockquote
+          if (/^&gt;\s/.test(block)) {
+            const inner = block.split('\n').map((l) => l.replace(/^&gt;\s?/, '')).join('\n');
+            out.push('<blockquote>' + inline(inner).replace(/\n/g, '<br>') + '</blockquote>');
+            continue;
+          }
+
+          // Unordered list
+          if (/^(\s*)[-*+]\s+/.test(block)) {
+            const items = block.split(/\n(?=(\s*)[-*+]\s+)/).filter((l) => l && /\S/.test(l));
+            const lis = block.split('\n').filter((l) => /^\s*[-*+]\s+/.test(l))
+              .map((l) => '<li>' + inline(l.replace(/^\s*[-*+]\s+/, '')) + '</li>').join('');
+            out.push('<ul>' + lis + '</ul>');
+            continue;
+          }
+
+          // Ordered list
+          if (/^\s*\d+\.\s+/.test(block)) {
+            const lis = block.split('\n').filter((l) => /^\s*\d+\.\s+/.test(l))
+              .map((l) => '<li>' + inline(l.replace(/^\s*\d+\.\s+/, '')) + '</li>').join('');
+            out.push('<ol>' + lis + '</ol>');
+            continue;
+          }
+
+          // Paragraph — preserve single-line breaks
+          out.push('<p>' + inline(block).replace(/\n/g, '<br>') + '</p>');
+        }
+
+        return out.join('');
+
+        function inline(s) {
+          // Inline code first (so its contents don't get bold'd)
+          const inlineCodes = [];
+          s = s.replace(/`([^`\n]+)`/g, (_m, body) => {
+            inlineCodes.push(body);
+            return '\u0000INL' + (inlineCodes.length - 1) + '\u0000';
+          });
+          // Links [text](href)
+          s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+            (_m, text, href) => '<a href="' + href + '" target="_blank" rel="noreferrer noopener">' + text + '</a>');
+          // Bold **text** then italic *text* / _text_
+          s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+          s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+          s = s.replace(/(^|[^_])_([^_\n]+)_/g, '$1<em>$2</em>');
+          // Restore inline code
+          s = s.replace(/\u0000INL(\d+)\u0000/g, (_m, i) => '<code>' + inlineCodes[+i] + '</code>');
+          return s;
+        }
+      }
+      function stringify(v) {
+        if (v == null) return '';
+        if (typeof v === 'string') return v;
+        try { return JSON.stringify(v, null, 2); } catch { return String(v); }
+      }
+
+      function autosize() {
+        const input = document.getElementById('input');
+        input.style.height = 'auto';
+        input.style.height = Math.min(180, input.scrollHeight || 28) + 'px';
+      }
+
+      // ---- Init ----
+      const input = document.getElementById('input');
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+      });
+      input.addEventListener('input', autosize);
+
+      renderHero();
+      renderMiniGallery();
+      wireDelegationMode();
+      loadCatalogue();
+      refreshUsage();
+      setInterval(refreshUsage, 3000);
+    </script>
+  </body>
+</html>

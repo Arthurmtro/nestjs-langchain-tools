@@ -1,378 +1,394 @@
-# NestJS LangChain Tools
+# nestjs-langchain-tools
 
 [![NPM Version](https://img.shields.io/npm/v/nestjs-langchain-tools.svg)](https://www.npmjs.com/package/nestjs-langchain-tools)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A powerful NestJS module for seamless integration with LangChain tools and agents. Build sophisticated AI features in your NestJS applications with a simple decorator-based API.
-
-## 🚀 Features
-
-- **Decorator-based Tools** - Create LangChain tools with a simple decorator API
-- **Multi-Agent Architecture** - Build specialized agents for different tasks
-- **Smart Routing** - Automatically routes requests to the right agent
-- **Provider Agnostic** - Works with OpenAI, Anthropic, Mistral, and more
-- **Memory Support** - Optional conversation memory for stateful interactions
-- **Type-Safe** - Uses TypeScript and Zod schemas for robust type safety
-- **Streaming Support** - Real-time token streaming with SSE and tool execution updates
-- **RAG Integration** - Built-in support for Retrieval Augmented Generation with vector databases
-- **Tool Timeouts** - Configure timeouts for long-running tools
-
-## 📦 Installation
+**The NestJS × LangChain integration.** LangGraph-first, class-validator native, observability auto-wired, shipped adapters for Redis / Mongo / Qdrant / pgvector / Pinecone.
 
 ```bash
-# Using npm
-npm install nestjs-langchain-tools
-
-# Using yarn
-yarn add nestjs-langchain-tools
-
-# Using pnpm
-pnpm add nestjs-langchain-tools
+pnpm add nestjs-langchain-tools \
+  @langchain/core @langchain/openai @langchain/langgraph \
+  class-validator class-transformer rxjs reflect-metadata
 ```
 
-## 🔧 Quick Start
+## Why this package
 
-### 1. Import the module in your app.module.ts
+Building LangChain apps in NestJS used to mean one of:
+- Writing a thin `OpenAIService` wrapper and re-implementing every LangChain feature by hand
+- Rolling a custom decorator system on top of `AgentExecutor` and fighting DI
+- Leaking LangChain internals all over your controllers
+
+`nestjs-langchain-tools` is the opinionated layer : **one decorator per agent, one per tool, auto-discovered at boot, streaming by default, observability for free, every backend pluggable**.
+
+## 60 seconds setup
 
 ```typescript
+// app.module.ts
 import { Module } from '@nestjs/common';
-import { LangChainToolsModule } from 'nestjs-langchain-tools';
+import { LangChainToolsModule, ModelProvider } from 'nestjs-langchain-tools';
+import { WeatherAgent } from './weather.agent';
+import { ChatController } from './chat.controller';
 
 @Module({
   imports: [
-    LangChainToolsModule.forRoot({
-      coordinatorPrompt: `
-        You are a hotel concierge AI.
-        You coordinate different specialized agents to help guests.
-        
-        {input}
-      `,
-      // Enable streaming support
-      enableStreaming: true,
+    LangChainToolsModule.forRootAsync({
+      useFactory: () => ({
+        coordinatorProvider: ModelProvider.OPENAI,
+        coordinatorModel: 'gpt-4o',
+        coordinatorUseMemory: true,
+      }),
     }),
   ],
+  controllers: [ChatController],
+  providers: [WeatherAgent],
 })
 export class AppModule {}
 ```
 
-### 2. Create agent services with tools
-
 ```typescript
+// weather.agent.ts
 import { Injectable } from '@nestjs/common';
-import { z } from 'zod';
-import { AgentTool, ToolsAgent } from 'nestjs-langchain-tools';
+import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { ToolsAgent, AgentTool } from 'nestjs-langchain-tools';
+
+class GetWeatherDto {
+  @IsString()
+  location!: string;
+
+  @IsEnum(['celsius', 'fahrenheit'])
+  @IsOptional()
+  unit?: 'celsius' | 'fahrenheit';
+}
 
 @Injectable()
 @ToolsAgent({
-  name: 'Booking Agent',
-  description: 'Handles all hotel reservation operations',
-  systemPrompt: `You are a booking specialist. Help with room reservations. {input}`,
+  name: 'WeatherAgent',
+  description: 'Answers weather questions',
+  systemPrompt: 'You are a weather expert. Use the tool for every question.',
 })
-export class BookingAgentService {
+export class WeatherAgent {
   @AgentTool({
-    name: 'check_availability',
-    description: 'Check room availability',
-    schema: z.object({
-      checkIn: z.string(),
-      checkOut: z.string(),
-      roomType: z.string(),
-    }),
+    name: 'get_weather',
+    description: 'Current weather at a location',
+    input: GetWeatherDto,
   })
-  async checkAvailability(input: any) {
-    // Your implementation here
-    return `Room availability for ${input.roomType} from ${input.checkIn} to ${input.checkOut}...`;
+  async getWeather(input: GetWeatherDto): Promise<string> {
+    // input is a fully validated, typed instance — no manual parsing needed
+    return `It's 22°${input.unit === 'fahrenheit' ? 'F' : 'C'} in ${input.location}.`;
   }
 }
 ```
-
-### 3. Use the coordinator in your controllers
 
 ```typescript
-import { Controller, Post, Body } from '@nestjs/common';
-import { CoordinatorService } from 'nestjs-langchain-tools';
+// chat.controller.ts
+import { Controller } from '@nestjs/common';
+import { LangChainChatController } from 'nestjs-langchain-tools/http';
+import { GraphCoordinatorService } from 'nestjs-langchain-tools';
 
-@Controller('ai')
-export class AIController {
-  constructor(private readonly coordinatorService: CoordinatorService) {}
-
-  @Post('chat')
-  async chat(@Body() body: { message: string }) {
-    return {
-      response: await this.coordinatorService.processMessage(body.message),
-    };
+@Controller('chat')
+export class ChatController extends LangChainChatController {
+  constructor(protected coordinator: GraphCoordinatorService) {
+    super();
   }
 }
 ```
 
-## 📘 Key Concepts
+You now have:
+- `POST /chat` → synchronous reply
+- `GET /chat/stream?q=...&sessionId=...` → **SSE stream of typed events** (tokens, tool calls, progress, errors)
+- Zero boilerplate wiring
 
-### Agents
+## Features
 
-Agents are specialized AI assistants that can use tools. Each agent handles specific domains or tasks:
+### 🎯 Decorator-driven
+One decorator per agent (`@ToolsAgent`), one per tool (`@AgentTool`). Auto-discovered via Nest's `DiscoveryService`. No manual registration.
+
+### 🔒 class-validator native
+Tool inputs are plain NestJS DTOs. They're validated at runtime **and** converted to JSON Schema for the LLM — no Zod required.
+
+```typescript
+class TransferDto {
+  @IsString() @MinLength(10) accountId!: string;
+  @IsInt() @Min(1) @Max(1_000_000) amount!: number;
+  @IsEnum(['EUR', 'USD', 'GBP']) currency!: string;
+}
+
+@AgentTool({ name: 'transfer', input: TransferDto })
+@Authorize({ roles: ['finance-admin'] })
+async transfer(input: TransferDto) { /* input is typed, validated, authorized */ }
+```
+
+### 🌊 LangGraph-first orchestration
+`GraphCoordinatorService` uses `createReactAgent` from `@langchain/langgraph` under the hood. Stream every token, tool call, and handoff as typed Observable events.
+
+```typescript
+this.coordinator.processMessageStream('Book me a Paris hotel').subscribe({
+  next: (event) => {
+    switch (event.type) {
+      case 'token':        /* { content: 'Found...', agent: 'BookingAgent' } */
+      case 'tool-start':   /* { tool: 'search_hotels', input: {...} } */
+      case 'tool-progress':/* { tool: 'search_hotels', progress: 40 } */
+      case 'tool-end':     /* { tool: 'search_hotels', output: {...} } */
+      case 'agent-handoff':/* { from: 'Supervisor', to: 'BookingAgent' } */
+      case 'interrupt':    /* { threadId, reason: 'needs_approval' } */
+      case 'complete':     /* { content: 'Booked...', threadId } */
+      case 'error':        /* { error: 'rate limited' } */
+    }
+  },
+});
+```
+
+### 🎚️ Async generator tools
+Stream progress from within a tool without calling a service:
+
+```typescript
+@AgentTool({ name: 'index_corpus', input: IndexDto, streaming: true })
+async *indexCorpus(input: IndexDto): AsyncGenerator<
+  { progress: number; message: string },
+  string
+> {
+  yield { progress: 10, message: 'parsing' };
+  const parsed = await this.parse(input);
+  yield { progress: 50, message: 'embedding' };
+  await this.embed(parsed);
+  yield { progress: 100, message: 'done' };
+  return `${parsed.length} documents indexed`;
+}
+```
+
+Every `yield` becomes a `tool-progress` event in the stream.
+
+### 🧑‍⚖️ Tool authorization
+Protect tools with a `@Authorize` decorator and a pluggable `ToolAuthorizer` that sees the current request:
+
+```typescript
+@AgentTool({ name: 'delete_account', input: DeleteAccountDto })
+@Authorize({ roles: ['admin'] })
+async deleteAccount(input: DeleteAccountDto) { /* ... */ }
+
+// In module options:
+LangChainToolsModule.forRoot({
+  toolAuthorizer: {
+    authorize: ({ metadata, runtime }) => {
+      const user = (runtime as Request).user;
+      return metadata.roles!.every((r) => user.roles.includes(r));
+    },
+  },
+})
+```
+
+### 🔭 Observability auto-wired
+**LangSmith tracing** activates automatically when `LANGSMITH_API_KEY` is set. **Token + cost tracking** is active out of the box via `TokenUsageService`:
+
+```typescript
+constructor(private readonly usage: TokenUsageService) {}
+
+@Get('usage')
+billing() {
+  const totals = this.usage.totals(); // { promptTokens, completionTokens, totalTokens, costUsd }
+  const byModel = this.usage.breakdown(); // per-model USD breakdown
+  const perSession = this.usage.totals('user_42'); // session-scoped
+  return { totals, byModel, perSession };
+}
+```
+
+Pricing ships for GPT-4o, Claude 3.x, Mistral Large, Haiku, and more — override per deployment with `.setPricing({ ... })`.
+
+### 🧠 Memory & checkpointing
+Single `sessionId` identifies a conversation thread. Plug any `SessionStore`:
+
+```typescript
+import { MongoSessionStore } from 'nestjs-langchain-tools/mongo';
+import { RedisSessionStore } from 'nestjs-langchain-tools/redis';
+
+LangChainToolsModule.forRoot({
+  sessionStore: new MongoSessionStore({
+    collection: client.db('app').collection('lc_sessions'),
+    ttlSeconds: 60 * 60 * 24 * 7,
+    maxMessages: 200,
+    ensureIndexes: true,
+  }),
+  // Or use Redis for sub-ms latency:
+  // sessionStore: new RedisSessionStore({ client: ioredis, ttlSeconds: 3600 }),
+})
+```
+
+### 👥 Multi-agent supervisor
+Coordinate specialists via a LangGraph supervisor:
 
 ```typescript
 @Injectable()
-@ToolsAgent({
-  name: 'Weather Agent',
-  description: 'Provides weather information',
-  modelType: 'openai', // 'anthropic', 'mistral', etc.
-  modelName: 'gpt-4o',
-  temperature: 0.2,
-  useMemory: true,
+@SupervisorAgent({
+  name: 'TravelOrchestrator',
+  workers: ['WeatherAgent', 'BookingAgent'],
+  routingStrategy: 'llm',
+  systemPrompt: 'Pick the best worker for each sub-task.',
 })
-export class WeatherAgentService {
-  // Tools defined here
-}
+export class TravelSupervisor {}
 ```
 
-### Tools
+### ✋ Human-in-the-loop
+```typescript
+@AgentTool({ name: 'approve_wire', input: WireDto })
+@HumanInterrupt({ prompt: 'Review and approve this wire transfer.' })
+async wire(input: WireDto) { /* only runs after `coordinator.resume(threadId, decision)` */ }
+```
 
-Tools are methods that agents can use to perform actions:
+### 🛠 Resilience
+```typescript
+import { withRetry } from 'nestjs-langchain-tools';
+
+const result = await withRetry(() => model.invoke(messages), {
+  maxAttempts: 4,
+  initialDelayMs: 500,
+  maxDelayMs: 10_000,
+  factor: 2,
+});
+```
+Automatic retry on 429 / 5xx / network errors with exponential backoff + jitter.
+
+### 🧪 Testing harness
+```typescript
+import { LangChainToolsTestingModule, MockChatModel } from 'nestjs-langchain-tools/testing';
+
+const mock = new MockChatModel({
+  script: [
+    { toolCalls: [{ name: 'get_weather', args: { location: 'Paris' } }] },
+    'The weather in Paris is sunny.',
+  ],
+});
+
+const moduleRef = await Test.createTestingModule({
+  imports: [
+    LangChainToolsTestingModule.forRoot({ llm: mock }),
+    MyAgentsModule,
+  ],
+}).compile();
+```
+
+## Shipped adapters
+
+| Sub-path | Capability | Peer dep |
+|---|---|---|
+| `nestjs-langchain-tools/redis` | `RedisSessionStore`, `createRedisCheckpointSaver` | `ioredis` or `redis` |
+| `nestjs-langchain-tools/mongo` | `MongoSessionStore`, `createMongoCheckpointSaver`, `MongoAtlasVectorStore` | `mongodb` |
+| `nestjs-langchain-tools/qdrant` | `QdrantVectorStore` | `@qdrant/js-client-rest` |
+| `nestjs-langchain-tools/pgvector` | `PgVectorStore` (Postgres + pgvector extension) | `pg` |
+| `nestjs-langchain-tools/pinecone` | `PineconeVectorStore` | `@pinecone-database/pinecone` |
+
+All adapters accept a user-provided client — **no connection management inside the library**.
+
+## Configuration reference
 
 ```typescript
-@AgentTool({
-  name: 'get_forecast',
-  description: 'Get weather forecast for a location',
-  schema: z.object({
-    location: z.string(),
-    days: z.number().optional(),
+LangChainToolsModule.forRootAsync({
+  imports: [ConfigModule],
+  inject: [ConfigService],
+  useFactory: (cfg: ConfigService) => ({
+    // Coordinator
+    coordinatorProvider: ModelProvider.ANTHROPIC,
+    coordinatorModel: 'claude-3-7-sonnet-latest',
+    coordinatorTemperature: 0.3,
+    coordinatorUseMemory: true,
+    coordinatorPrompt: 'You are a helpful concierge.',
+
+    // Streaming
+    enableStreaming: true,
+    enableToolStreaming: true,
+
+    // Memory
+    sessionStore: new MongoSessionStore({ ... }),
+    maxMessagesPerSession: 200,
+
+    // Tools
+    toolTimeout: { enabled: true, durationMs: 30_000 },
+    toolAuthorizer: myAuthorizer,
+
+    // Vector store (RAG)
+    vectorStore: { type: VectorStoreType.CUSTOM, adapter: new QdrantVectorStore({...}) },
+
+    // Escape hatches
+    llmFactory: (ctx) => myCustomModel(ctx),   // provider-agnostic
+    coordinatorLlm: preBuiltModel,             // bypass factory entirely
   }),
 })
-async getForecast(input: any) {
-  // Implementation
-  return `Weather forecast for ${input.location}...`;
+```
+
+Every field is validated at boot by class-validator — misconfiguration fails fast with a descriptive error.
+
+## Recipes
+
+### RAG over a Postgres knowledge base
+```typescript
+import { Pool } from 'pg';
+import { OpenAIEmbeddings } from '@langchain/openai';
+import { PgVectorStore } from 'nestjs-langchain-tools/pgvector';
+
+const store = new PgVectorStore({
+  client: new Pool({ connectionString: process.env.DATABASE_URL }),
+  embeddings: new OpenAIEmbeddings({ modelName: 'text-embedding-3-small' }),
+  vectorSize: 1536,
+  ensureTable: true,
+});
+
+@Injectable()
+@ToolsAgent({ name: 'Support', description: '...', systemPrompt: '...' })
+@WithRetrieval({ enabled: true, collectionName: 'kb', topK: 4 })
+export class SupportAgent {}
+```
+
+### Streaming to a React UI via SSE
+```typescript
+// Client side
+const es = new EventSource('/chat/stream?q=hello&sessionId=user_42');
+es.addEventListener('token', (e) => append(JSON.parse(e.data).content));
+es.addEventListener('tool-start', (e) => toast(`→ ${JSON.parse(e.data).tool}`));
+es.addEventListener('complete', () => es.close());
+```
+
+### Multi-tenant per-user memory
+```typescript
+@Post('chat')
+chat(@Body() body: ChatDto, @SessionId() sessionId: string) {
+  return this.coordinator.processMessage(body.message, { sessionId });
 }
 ```
+`@SessionId()` resolves the session from `x-session-id` header → `req.user.id` → `req.user.sub` → `'default'`.
 
-### Coordinator
-
-The coordinator routes user requests to the appropriate agent:
-
-```typescript
-// In your controller
-const response = await this.coordinatorService.processMessage(
-  "What's the weather in Paris tomorrow?"
-);
-```
-
-## 📖 API Reference
-
-### Module Configuration
-
+### Deny-by-default tool authorization
 ```typescript
 LangChainToolsModule.forRoot({
-  coordinatorPrompt: string,   // System prompt for the coordinator
-  coordinatorModel?: string,   // Model for coordinator (default: gpt-3.5-turbo)
-  coordinatorProvider?: string // LLM provider (default: 'openai')
-  // Additional options...
-})
-```
-
-### Agent Decorator
-
-```typescript
-@ToolsAgent({
-  name: string,               // Agent name
-  description: string,        // Agent description
-  systemPrompt: string,       // System prompt for the agent
-  modelType?: string,         // Provider: 'openai', 'anthropic', 'mistral', 'llama', 'custom'
-  modelName?: string,         // Model name
-  temperature?: number,       // Temperature (default: 0)
-  useMemory?: boolean,        // Enable conversation memory (default: false)
-  returnIntermediateSteps?: boolean, // Return reasoning steps (default: false)
-})
-```
-
-### Tool Decorator
-
-```typescript
-@AgentTool({
-  name: string,               // Tool name
-  description: string,        // Tool description
-  schema: ZodSchema,          // Zod schema for input validation
-})
-```
-
-### RAG (Retrieval Augmented Generation)
-
-Enable knowledge base capabilities for your agents:
-
-```typescript
-// In your module configuration
-LangChainToolsModule.forRoot({
-  // ... other options
-  vectorStore: {
-    type: VectorStoreType.MEMORY, // Or PINECONE, CHROMA, FAISS, QDRANT
-    collectionName: 'my_collection',
-    // Additional provider-specific options
+  toolAuthorizer: {
+    authorize: ({ metadata, runtime }) => {
+      if (!metadata.roles?.length) return { allowed: true };
+      const user = (runtime as { user?: { roles?: string[] } })?.user;
+      return user?.roles?.some((r) => metadata.roles!.includes(r))
+        ? { allowed: true }
+        : { allowed: false, reason: 'insufficient role' };
+    },
   },
-  embeddingModel: 'text-embedding-3-small', // OpenAI embedding model
 })
-
-// In your agent class
-@ToolsAgent({ /* ... */ })
-@WithRetrieval({
-  enabled: true,
-  collectionName: 'my_collection',
-  topK: 5,                   // Number of documents to retrieve
-  scoreThreshold: 0.7,       // Minimum similarity score (0-1)
-  includeMetadata: true,     // Include document metadata in context
-  storeRetrievedContext: true, // Save retrieved context to memory
-})
-export class KnowledgeAgent {
-  constructor(private readonly vectorStoreService: VectorStoreService) {
-    // Initialize knowledge base
-    this.initializeKnowledgeBase();
-  }
-
-  async initializeKnowledgeBase() {
-    // Add documents to the knowledge base
-    await this.vectorStoreService.addDocuments([
-      DocumentProcessor.fromText("Example content", { source: "example" })
-    ], 'my_collection');
-  }
-}
 ```
 
-## 🧪 Testing
-
-```bash
-# Set your API key
-export OPENAI_API_KEY=your-api-key
-
-# Run unit tests only (skips integration tests)
-npm run test:unit
-
-# Run all tests
-npm test
-
-# Run integration tests
-npm run test:integration
-
-# Run example app
-npm run example
-```
-
-## 🔍 Example Application
-
-Check out the complete example in the `/test/example-app` directory:
-
-- Weather Agent with forecast tools
-- Travel Agent with hotel and attraction tools
-- Knowledge Agent with RAG capabilities for answering questions
-- Streaming Tool Agent for visualizing progressive updates
-- Timeout Demo Agent for handling long-running operations
-- Interactive demo with streaming capabilities and RAG visualization
-
-### Streaming Responses and Tool Progress Updates
-
-The package supports real-time streaming responses through Server-Sent Events (SSE) with both token streaming and tool execution updates. Here's how to set it up in your controller:
+## Health check
 
 ```typescript
-import { Controller, Post, Body, Sse, Query } from '@nestjs/common';
-import { Observable, Subject } from 'rxjs';
-import { CoordinatorService, ToolStreamService, ToolStreamUpdate } from 'nestjs-langchain-tools';
+import { LangChainHealthIndicator } from 'nestjs-langchain-tools/health';
 
-@Controller('api')
-export class YourController {
-  constructor(
-    private readonly coordinatorService: CoordinatorService,
-    private readonly toolStreamService: ToolStreamService
-  ) {}
-
-  // Traditional endpoint returning complete response
-  @Post('chat')
-  async chat(@Body() body: { message: string }): Promise<{ response: string }> {
-    const response = await this.coordinatorService.processMessage(body.message);
-    return { response };
-  }
-
-  // Server-Sent Events streaming endpoint
-  @Sse('chat/sse')
-  chatSSE(@Query('message') message: string): Observable<MessageEvent> {
-    const subject = new Subject<MessageEvent>();
-    
-    if (!message) {
-      subject.next({ data: { error: 'Message parameter is required' } });
-      subject.complete();
-      return subject.asObservable();
-    }
-    
-    // Setup tool streaming if available
-    if (this.toolStreamService) {
-      this.toolStreamService.setStreamingEnabled(true);
-      this.toolStreamService.setCallback((update: ToolStreamUpdate) => {
-        // Send tool updates to client
-        subject.next({ data: { toolUpdate: update } });
-      });
-    }
-    
-    this.coordinatorService.processMessage(
-      message, 
-      true, // Enable streaming
-      (token: string) => {
-        subject.next({ data: { token } });
-      }
-    )
-    .then(() => {
-      subject.next({ data: { done: true } });
-      subject.complete();
-    })
-    .catch((error) => {
-      subject.next({ data: { error: error.message } });
-      subject.complete();
-    });
-    
-    return subject.asObservable();
-  }
+@Controller('health')
+export class HealthController {
+  constructor(private readonly lc: LangChainHealthIndicator) {}
+  @Get() check() { return this.lc.check('langchain'); }
 }
 ```
 
-Check out the complete interactive demo in `/test/example-app/interactive-demo.html` for frontend implementation examples.
+A terminus-compatible variant (`LangChainTerminusIndicator`) ships in the same module for apps using `@nestjs/terminus`.
 
-### Command-line Testing with curl
+## Migration from v0.2
 
-You can also test the streaming endpoints from the command line:
+See [`MIGRATION-v0.2-to-v0.3.md`](./MIGRATION-v0.2-to-v0.3.md). Three breaking changes, most code is unaffected.
 
-```bash
-# Standard endpoint
-curl -X POST http://localhost:4000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message":"What is the weather in Paris?"}'
+## Links
 
-# SSE streaming endpoint (note that message is passed as a query parameter)
-curl -N -H "Accept: text/event-stream" \
-  "http://localhost:4000/api/chat/sse?message=What%20is%20the%20weather%20in%20Paris?"
-
-# Fetch streaming endpoint
-curl -X POST http://localhost:4000/api/chat/stream \
-  -H "Content-Type: application/json" \
-  -H "Accept: text/event-stream" \
-  -d '{"message":"What is the weather in Paris?"}'
-```
-
-## 🔄 CI/CD Process
-
-This project uses GitHub Actions for continuous integration and delivery:
-
-1. **On Pull Requests to `master`**:
-   - Runs linting
-   - Performs type checking
-   - Executes unit tests (integration tests are skipped in CI)
-   - Builds the package
-
-2. **On Push to `master`**:
-   - Runs all the above checks
-   - Automatically publishes to npm if all checks pass
-
-### Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes following conventional commits
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 License
-
-MIT
+- Issues / feature requests: https://github.com/arthurmtro/nestjs-langchain-tools/issues
+- License: MIT

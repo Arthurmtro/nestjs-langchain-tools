@@ -1,39 +1,31 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import * as dotenv from 'dotenv';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { join } from 'path';
+import * as dotenv from 'dotenv';
+import { AppModule } from './app.module';
 
 dotenv.config();
 
-if (!process.env.OPENAI_API_KEY) {
-  console.error('❌ ERROR: OPENAI_API_KEY environment variable is not set!');
-  console.error('Please set it in your .env file or export it in your terminal.');
-  process.exit(1);
-}
-
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-
   app.enableCors();
-  
-  // Static files are now served by ServeStaticModule in app.module.ts
 
-  const PORT = process.env.PORT || 4000;
+  const port = Number(process.env.PORT ?? 4000);
+  await app.listen(port);
 
-  await app.listen(PORT);
-
-  console.log(`🚀 Application is running on: http://localhost:${PORT}`);
-  console.log(`📱 Interactive demo available at: http://localhost:${PORT}/streaming-demo.html`);
-  console.log(`🔌 API endpoints: 
-  - POST /api/chat - Regular chat request
-  - POST /api/chat/stream - Streaming chat with SSE
-  - GET /api/chat/sse?message=your_message - NestJS SSE endpoint
-  - GET /api/agents - List available agents`);
+  console.log(`\n🧭  Travel Concierge demo`);
+  console.log(`    UI            http://localhost:${port}/`);
+  console.log(`    POST /api/chat         sync chat`);
+  console.log(`    GET  /api/chat/stream  SSE stream`);
+  console.log(`    POST /api/chat/resume  HITL resume`);
+  console.log(`    POST /api/config       switch model at runtime`);
+  console.log(`    GET  /api/usage        token + cost telemetry`);
+  console.log(`    GET  /api/catalogue    provider/model/agent catalogue\n`);
+  console.log(`  💡 Set your API key via the Settings panel in the UI`);
+  console.log(`     (or via OPENAI_API_KEY / ANTHROPIC_API_KEY / XAI_API_KEY env vars).`);
 }
 
 if (require.main === module) {
-  bootstrap();
+  void bootstrap();
 }
 
 export { bootstrap };

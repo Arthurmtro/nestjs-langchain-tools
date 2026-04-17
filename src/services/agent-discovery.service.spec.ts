@@ -1,25 +1,22 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AgentDiscoveryService } from './agent-discovery.service';
 import { DiscoveryService, Reflector } from '@nestjs/core';
-import { ToolDiscoveryService } from './tool-discovery.service';
-import { MemoryService } from './memory.service';
-import { AGENT_METADATA } from '../decorators/agent.decorator';
 import { Injectable } from '@nestjs/common';
-import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { ChatOpenAI } from '@langchain/openai';
-import { AgentExecutor } from 'langchain/agents';
-import { AgentOptions, AgentType, ModelProvider } from '../interfaces/agent.interface';
+import { AgentDiscoveryService } from './agent-discovery.service';
+import { ToolDiscoveryService } from './tool-discovery.service';
+import {
+  AgentOptions,
+  AgentType,
+  ModelProvider,
+} from '../interfaces/agent.interface';
+import {
+  SUPERVISOR_AGENT_METADATA,
+  SupervisorAgentOptions,
+} from '../decorators/supervisor-agent.decorator';
+import { AGENT_METADATA } from '../decorators/agent.decorator';
 
-// Mock implementations
 class MockDiscoveryService {
   getProviders() {
-    return [];
-  }
-}
-
-class MockReflector {
-  get(metadataKey: string, target: any) {
-    return null;
+    return [] as unknown[];
   }
 }
 
@@ -29,148 +26,140 @@ class MockToolDiscoveryService {
   }
 }
 
-// Test agent with the @ToolsAgent decorator
 @Injectable()
-class TestAgent {
-  testMethod() {
-    return 'test';
-  }
-}
+class TestAgent {}
 
 describe('AgentDiscoveryService', () => {
   let service: AgentDiscoveryService;
   let discoveryService: DiscoveryService;
   let reflector: Reflector;
-  let toolDiscoveryService: ToolDiscoveryService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AgentDiscoveryService,
         { provide: DiscoveryService, useClass: MockDiscoveryService },
-        { provide: Reflector, useClass: MockReflector },
+        { provide: Reflector, useValue: new Reflector() },
         { provide: ToolDiscoveryService, useClass: MockToolDiscoveryService },
-        MemoryService,
       ],
     }).compile();
-
-    service = module.get<AgentDiscoveryService>(AgentDiscoveryService);
-    discoveryService = module.get<DiscoveryService>(DiscoveryService);
-    reflector = module.get<Reflector>(Reflector);
-    toolDiscoveryService = module.get<ToolDiscoveryService>(ToolDiscoveryService);
+    service = module.get(AgentDiscoveryService);
+    discoveryService = module.get(DiscoveryService);
+    reflector = module.get(Reflector);
   });
 
-  it('should be defined', () => {
+  it('is defined', () => {
     expect(service).toBeDefined();
   });
 
-  describe('discoverAndInitializeAgents', () => {
-    it('should discover and initialize agents', async () => {
-      // Mock the discovery service to return our test agent
-      const mockProviders = [
-        {
-          instance: new TestAgent(),
-          metatype: TestAgent,
-          name: 'TestAgent',
-          token: 'TestAgent',
-          isAlias: false
-        } as any,
-      ];
-      jest.spyOn(discoveryService, 'getProviders').mockReturnValue(mockProviders);
+  it('skips agents without tools or retrieval', async () => {
+    const agentMetadata: AgentOptions = {
+      name: 'Test',
+      description: 'test',
+      systemPrompt: 'system',
+      modelType: ModelProvider.OPENAI,
+      agentType: AgentType.TOOL_CALLING,
+    };
+    jest
+      .spyOn(discoveryService, 'getProviders')
+      .mockReturnValue([
+        { instance: new TestAgent(), metatype: TestAgent } as never,
+      ]);
+    jest.spyOn(reflector, 'get').mockReturnValue(agentMetadata);
 
-      // Mock the reflector to return agent metadata
-      const agentMetadata: AgentOptions = {
-        name: 'TestAgent',
-        description: 'Test agent for unit tests',
-        systemPrompt: 'You are a test agent',
-        modelType: ModelProvider.OPENAI,
-        agentType: AgentType.OPENAPI,
-      };
-      jest.spyOn(reflector, 'get').mockReturnValue(agentMetadata);
-
-      // Mock the tool discovery service to return some tools
-      const mockTools = [
-        {
-          name: 'testTool',
-          description: 'A test tool',
-          schema: { type: 'object', properties: {} },
-          invoke: async () => 'test result',
-          call: async () => 'test result',
-          lc_namespace: ['langchain', 'tools'],
-          returnDirect: false,
-          lc_serializable: true,
-        } as any,
-      ];
-      jest.spyOn(toolDiscoveryService, 'discoverToolsForProvider').mockReturnValue(mockTools);
-
-      // Mock the createModelInstance method
-      const mockModel = new ChatOpenAI();
-      jest.spyOn(service as any, 'createModelInstance').mockReturnValue(mockModel);
-
-      // Mock agent execution
-      const mockAgent = { invoke: jest.fn() };
-      const mockExecutor = { invoke: jest.fn() } as unknown as AgentExecutor;
-      jest.spyOn(ChatPromptTemplate, 'fromMessages').mockReturnValue({} as any);
-      
-      // Mock the initialize method to avoid actual agent creation
-      jest.spyOn(service as any, 'initializeAgent').mockImplementation(
-        async (agentOptions: any, tools: any[]) => {
-          service['agents'].set(agentOptions.name, {
-            name: agentOptions.name,
-            description: agentOptions.description,
-            executor: mockExecutor
-          });
-          return Promise.resolve();
-        });
-
-      const result = await service.discoverAndInitializeAgents();
-
-      // Verify the service attempted to discover agents
-      expect(discoveryService.getProviders).toHaveBeenCalled();
-      expect(reflector.get).toHaveBeenCalledWith(AGENT_METADATA, TestAgent);
-      expect(toolDiscoveryService.discoverToolsForProvider).toHaveBeenCalled();
-      
-      // Verify the result contains our test agent
-      expect(result.size).toBeGreaterThan(0);
-    });
+    const agents = await service.discoverAndInitializeAgents();
+    expect(agents.size).toBe(0);
   });
 
-  describe('getAgentByName and getAllAgents', () => {
-    it('should return agent by name', async () => {
-      const mockAgent = {
-        name: 'TestAgent',
-        description: 'Test agent',
-        executor: {} as AgentExecutor,
-      };
-      
-      // Add a mock agent to the agents map
-      (service as any).agents.set('TestAgent', mockAgent);
+  it('exposes registered agents via getAgentByName / getAllAgents', () => {
+    const info = {
+      name: 'X',
+      description: 'd',
+      options: { name: 'X', description: 'd', systemPrompt: 's' } as AgentOptions,
+      tools: [],
+    };
+    (service as unknown as { agents: Map<string, typeof info> }).agents.set(
+      'X',
+      info,
+    );
+    expect(service.getAgentByName('X')).toBe(info);
+    expect(service.getAllAgents()).toHaveLength(1);
+  });
 
-      const result = service.getAgentByName('TestAgent');
-      expect(result).toEqual(mockAgent);
+  describe('supervisor discovery', () => {
+    class Worker {}
+    class Boss {}
+
+    it('registers @SupervisorAgent classes and exposes them', async () => {
+      const workerOpts: AgentOptions = {
+        name: 'Worker',
+        description: 'w',
+        systemPrompt: 's',
+        modelType: ModelProvider.OPENAI,
+        agentType: AgentType.TOOL_CALLING,
+      };
+      const supOpts: SupervisorAgentOptions = {
+        name: 'Boss',
+        description: 'b',
+        systemPrompt: 'route',
+        workers: ['Worker'],
+      };
+
+      jest
+        .spyOn(discoveryService, 'getProviders')
+        .mockReturnValue([
+          { instance: new Worker(), metatype: Worker } as never,
+          { instance: new Boss(), metatype: Boss } as never,
+        ]);
+      jest
+        .spyOn(reflector, 'get')
+        .mockImplementation((key: unknown, target: unknown) => {
+          if (key === AGENT_METADATA && target === Worker) return workerOpts;
+          if (key === SUPERVISOR_AGENT_METADATA && target === Boss) return supOpts;
+          return undefined;
+        });
+      // The worker needs a tool to register, so stub the tool discovery.
+      (
+        service as unknown as {
+          toolDiscoveryService: { discoverToolsForProvider: () => unknown[] };
+        }
+      ).toolDiscoveryService = {
+        discoverToolsForProvider: () => [{ name: 'noop' }],
+      };
+
+      const supervisors = await service.discoverSupervisors();
+      expect(supervisors.size).toBe(1);
+      expect(service.getSupervisorByName('Boss')?.name).toBe('Boss');
+      expect(service.getAllSupervisors()).toHaveLength(1);
     });
 
-    it('should return all agents', async () => {
-      const mockAgent1 = {
-        name: 'TestAgent1',
-        description: 'Test agent 1',
-        executor: {} as AgentExecutor,
+    it('warns when a supervisor references an unknown worker', async () => {
+      const supOpts: SupervisorAgentOptions = {
+        name: 'Lonely',
+        description: '',
+        workers: ['Ghost'],
       };
-      
-      const mockAgent2 = {
-        name: 'TestAgent2',
-        description: 'Test agent 2',
-        executor: {} as AgentExecutor,
-      };
-      
-      // Add mock agents to the agents map
-      (service as any).agents.set('TestAgent1', mockAgent1);
-      (service as any).agents.set('TestAgent2', mockAgent2);
+      jest
+        .spyOn(discoveryService, 'getProviders')
+        .mockReturnValue([{ instance: new Boss(), metatype: Boss } as never]);
+      jest
+        .spyOn(reflector, 'get')
+        .mockImplementation((key: unknown) =>
+          key === SUPERVISOR_AGENT_METADATA ? supOpts : undefined,
+        );
+      const warn = jest
+        .spyOn(service['logger'], 'warn')
+        .mockImplementation(() => undefined);
+      await service.discoverSupervisors();
+      expect(warn).toHaveBeenCalled();
+      expect(service.getAllSupervisors()).toHaveLength(1);
+    });
 
-      const result = service.getAllAgents();
-      expect(result).toHaveLength(2);
-      expect(result).toContainEqual(mockAgent1);
-      expect(result).toContainEqual(mockAgent2);
+    it('is idempotent across repeated calls', async () => {
+      jest.spyOn(discoveryService, 'getProviders').mockReturnValue([]);
+      const first = await service.discoverSupervisors();
+      const second = await service.discoverSupervisors();
+      expect(first).toBe(second);
     });
   });
 });

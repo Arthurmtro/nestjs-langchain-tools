@@ -1,6 +1,5 @@
-import { AgentExecutor } from 'langchain/agents';
-import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { ToolInterface } from '@langchain/core/tools';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import type { ToolInterface } from '@langchain/core/tools';
 
 /**
  * Supported model providers
@@ -10,6 +9,7 @@ export enum ModelProvider {
   ANTHROPIC = 'anthropic',
   MISTRAL = 'mistral',
   LLAMA = 'llama',
+  GROK = 'grok',
   CUSTOM = 'custom',
 }
 
@@ -18,10 +18,11 @@ export enum ModelProvider {
  */
 export enum AgentType {
   OPENAPI = 'openapi',
-  JSON = 'json', 
+  JSON = 'json',
   REACT = 'react',
   STRUCTURED = 'structured',
   TOOL_CALLING = 'toolcalling',
+  LANGGRAPH = 'langgraph',
   CUSTOM = 'custom',
 }
 
@@ -108,6 +109,23 @@ export interface MistralAgentOptions extends BaseAgentOptions {
 }
 
 /**
+ * Configuration specific to xAI Grok models.
+ *
+ * Grok exposes an OpenAI-compatible endpoint at `https://api.x.ai/v1` so
+ * under the hood we drive `ChatOpenAI` with the xAI `baseURL`. Set
+ * `XAI_API_KEY` in the environment or pass `apiKey` explicitly.
+ */
+export interface GrokAgentOptions extends BaseAgentOptions {
+  modelType: ModelProvider.GROK;
+  /** Model name (e.g. `"grok-4"`, `"grok-4-mini"`, `"grok-3"`). */
+  modelName?: string;
+  /** xAI API key (falls back to `XAI_API_KEY` / `GROK_API_KEY` env var). */
+  apiKey?: string;
+  /** Override the xAI base URL (defaults to `https://api.x.ai/v1`). */
+  apiUrl?: string;
+}
+
+/**
  * Configuration for custom model providers
  */
 export interface CustomModelAgentOptions extends BaseAgentOptions {
@@ -123,18 +141,22 @@ export interface CustomModelAgentOptions extends BaseAgentOptions {
 /**
  * Union type of all possible agent configurations
  */
-export type AgentOptions = 
-  | OpenAIAgentOptions 
-  | AnthropicAgentOptions 
-  | LlamaAgentOptions 
+export type AgentOptions =
+  | OpenAIAgentOptions
+  | AnthropicAgentOptions
+  | LlamaAgentOptions
   | MistralAgentOptions
+  | GrokAgentOptions
   | CustomModelAgentOptions;
 
 /**
- * Information about an initialized agent
+ * Information about a discovered agent — tools it owns and the options it
+ * was declared with. The graph coordinator combines these (and any extras)
+ * into a single LangGraph `createReactAgent` call.
  */
 export interface AgentInfo {
   name: string;
   description: string;
-  executor: AgentExecutor;
+  options: AgentOptions;
+  tools: ToolInterface[];
 }

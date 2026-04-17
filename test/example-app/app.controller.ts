@@ -1,282 +1,248 @@
-
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Logger,
-  Res,
-  Sse,
-  MessageEvent,
-  Headers,
+  Controller,
+  Delete,
+  Get,
+  HttpException,
+  HttpStatus,
+  Param,
+  Post,
   Query,
-  Inject,
-  Optional
+  Sse,
 } from '@nestjs/common';
-import { Response } from 'express';
-import { Observable, Subject } from 'rxjs';
-import { map } from 'rxjs/operators';
-import { CoordinatorService } from '../../src/services/coordinator.service';
-import { ToolStreamService } from '../../src/services/tool-stream.service';
-import { ToolStreamUpdate } from '../../src/interfaces/tool.interface';
+import { DiscoveryService, Reflector } from '@nestjs/core';
+import { Observable, map } from 'rxjs';
+import { GraphCoordinatorService } from '../../src/graph/graph-coordinator.service';
+import {
+  CoordinatorStreamEvent,
+} from '../../src/graph/stream-events';
+import { TokenUsageService } from '../../src/observability/token-usage.service';
+import { DEFAULT_PRICING } from '../../src/observability/pricing';
+import { MemoryService } from '../../src/services/memory.service';
+import { AgentDiscoveryService } from '../../src/services/agent-discovery.service';
+import {
+  SUPERVISOR_AGENT_METADATA,
+  SupervisorAgentOptions,
+} from '../../src/decorators/supervisor-agent.decorator';
+import { ModelProvider } from '../../src/interfaces/agent.interface';
+import {
+  MODEL_CATALOGUE,
+  RuntimeConfigService,
+  RuntimeConfigSnapshot,
+  RuntimeModelConfig,
+  RuntimeModelOverride,
+} from './runtime-config.service';
+
+interface ChatBody {
+  message: string;
+  sessionId?: string;
+}
+
+interface ConfigBody {
+  provider: ModelProvider;
+  modelName: string;
+  apiKey?: string;
+  temperature?: number;
+}
+
+interface AgentOverrideBody {
+  provider?: ModelProvider;
+  modelName?: string;
+  apiKey?: string;
+  temperature?: number;
+}
+
+interface ResumeBody {
+  threadId: string;
+  decision: 'approve' | 'reject';
+  notes?: string;
+}
 
 @Controller('api')
 export class AppController {
-  private readonly logger = new Logger(AppController.name);
-  // Using a simple in-memory store for conversations
-  // In a production app, you would use Redis or another persistent store
-  private readonly conversations = new Map<string, string[]>();
-
   constructor(
-    private readonly coordinatorService: CoordinatorService,
-    @Optional() private readonly toolStreamService?: ToolStreamService
-  ) {
-    // Log if tool streaming service is available
-    if (this.toolStreamService) {
-      this.logger.log(`Tool streaming service is available, enabled: ${this.toolStreamService.isStreamingEnabled()}`);
-    } else {
-      this.logger.warn('Tool streaming service is not available');
+    private readonly coordinator: GraphCoordinatorService,
+    private readonly usage: TokenUsageService,
+    private readonly memory: MemoryService,
+    private readonly agents: AgentDiscoveryService,
+    private readonly runtime: RuntimeConfigService,
+    private readonly discovery: DiscoveryService,
+    private readonly reflector: Reflector,
+  ) {}
+
+  private discoverSupervisors(): Array<{ name: string; description: string }> {
+    const out: Array<{ name: string; description: string }> = [];
+    for (const wrapper of this.discovery.getProviders()) {
+      const metatype = wrapper.metatype;
+      if (!metatype) continue;
+      const meta = this.reflector.get<SupervisorAgentOptions | undefined>(
+        SUPERVISOR_AGENT_METADATA,
+        metatype,
+      );
+      if (!meta) continue;
+      out.push({ name: meta.name, description: meta.description ?? '' });
     }
-  }
-  
-  @Get()
-  redirectToDemo(@Res() res: Response) {
-    res.redirect('/interactive-demo.html');
+    return out;
   }
 
-  // Helper to get or create a conversation for a session
-  private getOrCreateConversation(sessionId: string = 'default'): string[] {
-    if (!this.conversations.has(sessionId)) {
-      this.conversations.set(sessionId, []);
-    }
-    return this.conversations.get(sessionId)!;
+  @Get('catalogue')
+  catalogue(): {
+    providers: typeof MODEL_CATALOGUE;
+    config: RuntimeConfigSnapshot;
+    supervisors: Array<{ name: string; description: string }>;
+    agents: Array<{ name: string; description: string; tools: string[] }>;
+    pricedModels: string[];
+    orchestration: {
+      taskDelegation: 'full-context' | 'focused' | 'rewritten';
+    };
+  } {
+    return {
+      providers: MODEL_CATALOGUE,
+      config: this.runtime.snapshot(),
+      supervisors: this.discoverSupervisors(),
+      agents: this.agents.getAllAgents().map((a) => ({
+        name: a.name,
+        description: a.description,
+        tools: a.tools.map((t) => (t as { name: string }).name),
+      })),
+      pricedModels: Object.keys(DEFAULT_PRICING),
+      orchestration: {
+        taskDelegation:
+          this.coordinator.getSupervisorOverride().taskDelegation ?? 'focused',
+      },
+    };
   }
 
-  // Helper to add a message to a conversation and return the session ID
-  private addMessageToConversation(message: string, sessionId: string = 'default'): string {
-    const conversation = this.getOrCreateConversation(sessionId);
-    conversation.push(message);
-    this.logger.log(`Session ${sessionId} history: ${conversation.length} messages`);
-    return sessionId;
+  @Post('supervisor/mode')
+  setSupervisorMode(
+    @Body() body: { taskDelegation: 'full-context' | 'focused' | 'rewritten' },
+  ): { taskDelegation: 'full-context' | 'focused' | 'rewritten' } {
+    const allowed = ['full-context', 'focused', 'rewritten'] as const;
+    if (!allowed.includes(body.taskDelegation)) {
+      throw new HttpException(
+        'taskDelegation must be one of: ' + allowed.join(', '),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    this.coordinator.setSupervisorOverride({
+      taskDelegation: body.taskDelegation,
+    });
+    this.usage.reset();
+    return { taskDelegation: body.taskDelegation };
+  }
+
+  @Post('config')
+  setConfig(@Body() body: ConfigBody): RuntimeModelConfig {
+    if (!body.provider || !body.modelName) {
+      throw new HttpException(
+        'provider and modelName are required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const next = this.runtime.set(body);
+    this.coordinator.reset();
+    return next;
+  }
+
+  @Post('config/agent/:name')
+  setAgentOverride(
+    @Param('name') name: string,
+    @Body() body: AgentOverrideBody,
+  ): RuntimeModelOverride {
+    const override = this.runtime.setOverride(name, body);
+    this.coordinator.reset();
+    return override;
+  }
+
+  @Delete('config/agent/:name')
+  clearAgentOverride(@Param('name') name: string): { cleared: true } {
+    this.runtime.clearOverride(name);
+    this.coordinator.reset();
+    return { cleared: true };
   }
 
   @Post('chat')
-  async chat(
-    @Body() body: { message: string },
-    @Headers('session-id') sessionId?: string
-  ): Promise<{ response: string }> {
-    this.logger.log(`Received chat request: ${JSON.stringify(body)}, sessionId: ${sessionId || 'default'}`);
-
-    if (!body || typeof body.message !== 'string') {
-      this.logger.error(`Invalid request body: ${JSON.stringify(body)}`);
-      throw new Error('Invalid request body. Expected {message: string}');
-    }
-
-    // Add to conversation history
-    this.addMessageToConversation(body.message, sessionId);
-
-    this.logger.log(`Processing message: ${body.message}`);
-    const response = await this.coordinatorService.processMessage(
-      body.message,
-      false,
-      undefined,
-      sessionId
-    );
-    this.logger.log(`Response generated: ${response}`);
-
-    // Add the response to conversation history too
-    this.addMessageToConversation(response, sessionId);
-
-    return { response };
-  }
-
-  @Post('chat/stream')
-  async chatStream(
-    @Body() body: { message: string },
-    @Res() res: Response,
-    @Headers('accept') accept: string,
-    @Headers('session-id') sessionId?: string
-  ): Promise<void> {
-    this.logger.log(`Received streaming chat request: ${JSON.stringify(body)}, sessionId: ${sessionId || 'default'}`);
-
-    if (!body || typeof body.message !== 'string') {
-      this.logger.error(`Invalid request body: ${JSON.stringify(body)}`);
-      res.status(400).json({ error: 'Invalid request body. Expected {message: string}' });
-      return;
-    }
-
-    // Add to conversation history
-    this.addMessageToConversation(body.message, sessionId);
-
-    // Check if the client supports event-stream
-    const wantsEventStream = accept && accept.includes('text/event-stream');
-
-    if (wantsEventStream) {
-      // Set up Server-Sent Events
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-
-      // Handle client disconnect
-      res.on('close', () => {
-        this.logger.log('Client closed connection');
-        res.end();
-      });
-
-      let fullResponse = '';
-
-      // Setup tool streaming if available
-      if (this.toolStreamService) {
-        // Ensure streaming is enabled
-        if (!this.toolStreamService.isStreamingEnabled()) {
-          this.logger.log('Forcibly enabling tool streaming for this request');
-          this.toolStreamService.setStreamingEnabled(true);
-        }
-        
-        // Set the callback
-        this.toolStreamService.setCallback((update: ToolStreamUpdate) => {
-          this.logger.log(`Sending tool update: ${update.toolName} - ${update.type} - ${update.progress !== undefined ? update.progress + '% - ' : ''}${update.content || ''}`);
-          res.write(`data: ${JSON.stringify({ toolUpdate: update })}\n\n`);
-          // Ensure the data is sent immediately
-          if (typeof (res as any).flush === 'function') {
-            (res as any).flush();
-          }
-        });
-        
-        // Double-check streaming is enabled
-        this.logger.log(`Tool streaming is now ${this.toolStreamService.isStreamingEnabled() ? 'enabled' : 'disabled'}`);
-      } else {
-        this.logger.warn('Tool streaming service not available for this request');
-      }
-      
-      // Stream the response
-      try {
-        await this.coordinatorService.processMessage(
-          body.message,
-          true, // Enable streaming
-          (token: string) => {
-            fullResponse += token;
-            res.write(`data: ${JSON.stringify({ token })}\n\n`);
-            // Ensure the data is sent immediately
-            if (typeof (res as any).flush === 'function') {
-              (res as any).flush();
-            }
-          },
-          sessionId
-        );
-
-        // Add the complete response to conversation history
-        this.addMessageToConversation(fullResponse, sessionId);
-
-        // Signal completion
-        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-        res.end();
-      } catch (error) {
-        const err = error as Error;
-        this.logger.error(`Streaming error: ${err.message}`);
-        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-        res.end();
-      }
-    } else {
-      // Fall back to regular JSON response for clients that don't support SSE
-      try {
-        const fullResponse = await this.coordinatorService.processMessage(body.message);
-
-        // Add the response to conversation history
-        this.addMessageToConversation(fullResponse, sessionId);
-
-        res.json({ response: fullResponse });
-      } catch (error) {
-        const err = error as Error;
-        this.logger.error(`Error processing message: ${err.message}`);
-        res.status(500).json({ error: err.message });
-      }
-    }
-  }
-
-  @Sse('chat/sse')
-  chatSSE(
-    @Headers('message') headerMessage: string,
-    @Query('message') queryMessage: string,
-    @Headers('session-id') sessionId?: string,
-    @Query('session-id') querySessionId?: string
-  ): Observable<MessageEvent> {
-    const message = queryMessage || headerMessage;
-    const session = querySessionId || sessionId || 'default';
-
-    this.logger.log(`Received SSE chat request: message=${message}, sessionId=${session}`);
-
-    if (!message) {
-      throw new Error('Message is required. Pass it as a query parameter: ?message=your_message');
-    }
-
-    // Add to conversation history
-    this.addMessageToConversation(message, session);
-
-    // Create a subject to push tokens to
-    const subject = new Subject<MessageEvent>();
-
-    let fullResponse = '';
-    
-    // Setup tool streaming if available
-    if (this.toolStreamService) {
-      // Ensure streaming is enabled
-      if (!this.toolStreamService.isStreamingEnabled()) {
-        this.logger.log('Forcibly enabling tool streaming for this SSE request');
-        this.toolStreamService.setStreamingEnabled(true);
-      }
-      
-      // Set the callback
-      this.toolStreamService.setCallback((update: ToolStreamUpdate) => {
-        this.logger.log(`Sending SSE tool update: ${update.toolName} - ${update.type} - ${update.progress !== undefined ? update.progress + '% - ' : ''}${update.content || ''}`);
-        subject.next({ data: { toolUpdate: update } });
-      });
-      
-      // Double-check streaming is enabled
-      this.logger.log(`Tool streaming is now ${this.toolStreamService.isStreamingEnabled() ? 'enabled' : 'disabled'} for SSE`);
-    } else {
-      this.logger.warn('Tool streaming service not available for this SSE request');
-    }
-
-    // Process the message and stream tokens
-    this.coordinatorService.processMessage(
-      message,
-      true,
-      (token: string) => {
-        fullResponse += token;
-        subject.next({ data: { token } });
-      },
-      sessionId
-    )
-    .then(() => {
-      // Add the complete response to conversation history
-      this.addMessageToConversation(fullResponse, session);
-
-      // Complete the stream when done
-      subject.next({ data: { done: true } });
-      subject.complete();
-    })
-    .catch((error) => {
-      // Handle errors
-      const err = error as Error;
-      this.logger.error(`SSE error: ${err.message}`);
-      subject.next({ data: { error: err.message } });
-      subject.complete();
+  async chat(@Body() body: ChatBody): Promise<{ reply: string }> {
+    const sessionId = body.sessionId ?? 'default';
+    const reply = await this.coordinator.processMessage(body.message, {
+      sessionId,
     });
-
-    return subject.asObservable();
+    return { reply };
   }
 
-  @Get('agents')
-  getAgents(): { agents: Array<{ name: string; description: string }> } {
-    // Get a list of all available agents for informational purposes
-    // We need to access the agentDiscoveryService through the coordinator
-    const agents = (this.coordinatorService as any).agentDiscoveryService?.getAllAgents() || [];
+  @Sse('chat/stream')
+  stream(
+    @Query('q') q: string,
+    @Query('sessionId') sessionId = 'default',
+  ): Observable<{ type: string; data: CoordinatorStreamEvent }> {
+    return this.coordinator
+      .processMessageStream(q, { sessionId })
+      .pipe(map((event) => ({ type: event.type, data: event })));
+  }
+
+  @Post('chat/resume')
+  async resume(@Body() body: ResumeBody): Promise<{ events: CoordinatorStreamEvent[] }> {
+    const events = await this.coordinator.resume(body.threadId, {
+      decision: body.decision,
+      notes: body.notes,
+    });
+    return { events };
+  }
+
+  @Get('usage')
+  usage_() {
+    // The global token-usage callback isn't session-scoped (it's attached at
+    // model construction), so we aggregate globally. The demo clears the
+    // session on reload/Clear — good enough for a showcase.
+    const totals = this.usage.totals();
+    // Relabel "coordinator" as the supervisor name — the graph coordinator's
+    // routing call is what the user perceives as the supervisor.
+    const supervisors = this.discoverSupervisors();
+    const supervisorName = supervisors[0]?.name;
+    const byAgent = this.usage.byAgent().map((row) =>
+      row.agent === 'coordinator' && supervisorName
+        ? { ...row, agent: supervisorName }
+        : row,
+    );
+    const byModel = this.usage.breakdown();
+    const priced = new Set(Object.keys(DEFAULT_PRICING));
+    const allFree = byModel.every((b) => !priced.has(b.model));
+    const allPriced = byModel.every((b) => priced.has(b.model));
     return {
-      agents: agents.map(agent => ({
-        name: agent.name,
-        description: agent.description
-      }))
+      totals,
+      byAgent,
+      byModel,
+      history: this.usage.history().slice(-20),
+      pricing: {
+        computable: byModel.length === 0 ? null : allPriced,
+        allFree,
+        unknownModels: byModel
+          .filter((b) => !priced.has(b.model))
+          .map((b) => b.model),
+      },
     };
+  }
+
+  @Get('sessions/:id/messages')
+  async history(@Param('id') id: string) {
+    const messages = await this.memory.getMessages(id);
+    return messages.map((m) => ({
+      role: m._getType?.() ?? 'human',
+      content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+    }));
+  }
+
+  @Post('sessions/:id/clear')
+  async clear(@Param('id') id: string): Promise<{ cleared: true }> {
+    await this.memory.clearMemory(id);
+    return { cleared: true };
+  }
+
+  @Post('sessions/clear-all')
+  async clearAll(): Promise<{ cleared: true }> {
+    // Demo convenience: clear both memory (if any) and usage so the
+    // cost counter resets when the user hits "Clear".
+    this.usage.reset();
+    return { cleared: true };
   }
 }

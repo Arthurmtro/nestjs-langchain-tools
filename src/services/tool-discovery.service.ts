@@ -1,15 +1,53 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
-import { DiscoveryService, MetadataScanner, Reflector } from '@nestjs/core';
-import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
-import { tool } from '@langchain/core/tools';
-import { ToolInterface } from '@langchain/core/tools';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  DiscoveryService,
+  MetadataScanner,
+  Reflector,
+} from '@nestjs/core';
+import type { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
+import { tool, type ToolInterface } from '@langchain/core/tools';
+import { z } from 'zod';
 import { TOOL_METADATA } from '../decorators/tool.decorator';
-import { ToolOptions, ToolStreamUpdateType } from '../interfaces/tool.interface';
+import {
+  TOOL_AUTHORIZATION_METADATA,
+  ToolAuthorizationMetadata,
+} from '../decorators/authorize.decorator';
+import type { ToolOptions } from '../interfaces/tool.interface';
 import { ToolStreamService } from './tool-stream.service';
-import { ToolTimeoutService, ToolTimeoutError } from './tool-timeout.service';
+import { ToolTimeoutError, ToolTimeoutService } from './tool-timeout.service';
+import {
+  classValidatorToJsonSchema,
+  jsonSchemaToZod,
+  validateAndTransform,
+  ToolInputValidationError,
+} from '../schema';
+import {
+  TOOL_AUTHORIZER,
+  ToolAuthorizer,
+  ToolAuthorizationDecision,
+} from '../authorization/tool-authorizer.interface';
+import {
+  drainGenerator,
+  isAsyncGeneratorFunction,
+} from '../tools/generator-tool.adapter';
+
+export interface ToolDiscoveryOptions {
+  /** Runtime context forwarded to the {@link ToolAuthorizer} (e.g. current request). */
+  authorizationContext?: unknown;
+}
+
+type ToolMethod = (...args: readonly unknown[]) => unknown;
+type ProviderInstance = Record<string, ToolMethod | unknown>;
+
+interface AuthorizationCheck {
+  allowed: boolean;
+  reason?: string;
+}
 
 /**
- * Service responsible for discovering and creating LangChain tools from decorated methods
+ * Discovers methods decorated with `@AgentTool` on Nest-managed providers
+ * and wraps them as LangChain tools. Handles class-validator DTO
+ * validation, tool streaming, timeouts, and authorization.
  */
 @Injectable()
 export class ToolDiscoveryService {
@@ -21,182 +59,257 @@ export class ToolDiscoveryService {
     private readonly reflector: Reflector,
     @Optional() private readonly toolStreamService?: ToolStreamService,
     @Optional() private readonly toolTimeoutService?: ToolTimeoutService,
+    @Optional()
+    @Inject(TOOL_AUTHORIZER)
+    private readonly authorizer?: ToolAuthorizer,
   ) {}
 
-  /**
-   * Discovers all tool methods across all providers
-   * 
-   * @returns Array of initialized LangChain tools
-   */
-  discoverTools(): ToolInterface[] {
-    this.logger.log('Discovering all tools...');
+  discoverTools(options: ToolDiscoveryOptions = {}): ToolInterface[] {
     const providers = this.discoveryService.getProviders();
     const tools: ToolInterface[] = [];
-
-    providers.forEach((wrapper: InstanceWrapper) => {
-      const { instance } = wrapper;
-      if (!instance) return;
-
-      const providerTools = this.discoverToolsForProvider(instance);
-      tools.push(...providerTools);
-    });
-
-    this.logger.log(`Discovered ${tools.length} tools total`);
+    for (const wrapper of providers) {
+      const instance = (wrapper as InstanceWrapper).instance;
+      if (!instance) continue;
+      tools.push(...this.discoverToolsForProvider(instance, options));
+    }
     return tools;
   }
 
-  /**
-   * Discovers tool methods in a specific provider instance
-   * 
-   * @param instance - Provider instance to scan for tools
-   * @returns Array of initialized LangChain tools
-   */
-  discoverToolsForProvider(instance: unknown): ToolInterface[] {
+  discoverToolsForProvider(
+    instance: unknown,
+    options: ToolDiscoveryOptions = {},
+  ): ToolInterface[] {
     const tools: ToolInterface[] = [];
-    const prototype = Object.getPrototypeOf(instance);
+    if (!instance || typeof instance !== 'object') return tools;
+    const prototype = Object.getPrototypeOf(instance) as object | null;
+    if (!prototype) return tools;
 
-    if (!prototype) {
-      this.logger.warn(`No prototype found for instance: ${
-        (instance as any)?.constructor?.name || 'unknown'
-      }`);
-      return tools;
-    }
+    const provider = instance as ProviderInstance;
 
     try {
       this.metadataScanner.scanFromPrototype(
-        instance,
+        provider,
         prototype,
         (methodName: string) => {
-          const method = (instance as Record<string, (...args: any[]) => any>)[methodName];
-          if (!method) return;
-
-          const toolMetadata: ToolOptions | undefined = this.reflector.get(
+          const method = provider[methodName];
+          if (typeof method !== 'function') return;
+          const metadata = this.reflector.get<ToolOptions | undefined>(
             TOOL_METADATA,
             method,
           );
+          if (!metadata) return;
 
-          if (toolMetadata) {
-            try {
-              this.logger.debug(`Creating tool: ${toolMetadata.name}`);
-              const toolFn = tool(
-                async (input: unknown) => {
-                  const streamingEnabled = this.toolStreamService?.isStreamingEnabled() && toolMetadata.streaming;
-                  
-                  this.logger.log(
-                    `Tool execution: ${toolMetadata.name} ` +
-                    `(streaming: ${streamingEnabled ? 'enabled' : 'disabled'}, ` +
-                    `service: ${this.toolStreamService?.isStreamingEnabled() ? 'enabled' : 'disabled'}, ` +
-                    `tool config: ${toolMetadata.streaming ? 'enabled' : 'disabled'})`
-                  );
-                  
-                  // If streaming is enabled, notify about tool execution start
-                  if (streamingEnabled) {
-                    this.logger.log(`Starting tool execution with streaming: ${toolMetadata.name}`);
-                    this.toolStreamService?.startToolExecution(toolMetadata.name, input as Record<string, any>);
-                  }
-                  
-                  try {
-                    // Check if timeout is enabled for this tool
-                    const timeoutEnabled = this.toolTimeoutService?.isTimeoutEnabled() || false;
-                    let timeoutConfig: { enabled: boolean; durationMs: number } | undefined;
-                    
-                    if (timeoutEnabled && this.toolTimeoutService) {
-                      timeoutConfig = this.toolTimeoutService.getToolTimeoutConfig(toolMetadata);
-                      
-                      if (timeoutConfig?.enabled) {
-                        this.logger.log(
-                          `Tool execution with timeout: ${toolMetadata.name} (${timeoutConfig.durationMs}ms)`
-                        );
-                      }
-                    }
-                    
-                    // Define the execution function
-                    const executeTool = async () => {
-                      this.logger.log(`Executing tool method: ${toolMetadata.name}`);
-                      const result = await method.call(instance, input);
-                      this.logger.log(`Tool execution completed: ${toolMetadata.name} with result length: ${result?.length || 0}`);
-                      return result;
-                    };
-                    
-                    // Execute with or without timeout
-                    let result;
-                    if (timeoutEnabled && timeoutConfig && timeoutConfig.enabled && this.toolTimeoutService) {
-                      try {
-                        const durationMs = timeoutConfig.durationMs;
-                        result = await this.toolTimeoutService.executeWithTimeout(
-                          executeTool,
-                          toolMetadata.name,
-                          durationMs
-                        );
-                      } catch (timeoutError) {
-                        // Handle timeout error
-                        if (timeoutError instanceof ToolTimeoutError) {
-                          const durationMs = timeoutConfig.durationMs;
-                          this.logger.warn(
-                            `Tool ${toolMetadata.name} timed out after ${durationMs}ms`
-                          );
-                          
-                          // We don't need to notify about timeout here because
-                          // the ToolTimeoutService already does that
-                          
-                          return `Error: Tool execution timed out after ${timeoutConfig.durationMs}ms`;
-                        }
-                        // Re-throw other errors to be caught by the outer catch
-                        throw timeoutError;
-                      }
-                    } else {
-                      // Execute without timeout
-                      result = await executeTool();
-                    }
-                    
-                    // Notify about tool execution completion
-                    if (streamingEnabled) {
-                      this.logger.log(`Reporting tool completion: ${toolMetadata.name}`);
-                      
-                      // Direct call to the streaming service to ensure it works
-                      this.toolStreamService?.completeToolExecution(toolMetadata.name, result);
-                    }
-                    
-                    return result;
-                  } catch (error) {
-                    const err = error as Error;
-                    this.logger.error(
-                      `Error executing tool ${toolMetadata.name}:`, 
-                      err.stack
-                    );
-                    
-                    // Notify about tool execution error
-                    if (streamingEnabled) {
-                      this.toolStreamService?.errorToolExecution(toolMetadata.name, err);
-                    }
-                    
-                    return `Error: ${err.message}`;
-                  }
-                },
-                {
-                  name: toolMetadata.name,
-                  description: toolMetadata.description,
-                  schema: toolMetadata.schema,
-                },
-              );
+          const authMetadata = this.reflector.get<
+            ToolAuthorizationMetadata | undefined
+          >(TOOL_AUTHORIZATION_METADATA, method);
 
-              tools.push(toolFn);
-              this.logger.debug(`Tool ${toolMetadata.name} created successfully`);
-            } catch (error) {
-              const err = error as Error;
-              this.logger.error(
-                `Error creating tool ${toolMetadata.name}:`, 
-                err.stack
-              );
-            }
+          try {
+            const built = this.buildTool(
+              provider,
+              method as ToolMethod,
+              metadata,
+              authMetadata,
+              options,
+            );
+            tools.push(built);
+          } catch (err) {
+            this.logger.error(
+              `Error creating tool ${metadata.name}:`,
+              (err as Error).stack,
+            );
           }
         },
       );
-    } catch (error) {
-      const err = error as Error;
-      this.logger.error(`Error scanning prototype for tools:`, err.stack);
+    } catch (err) {
+      this.logger.error(
+        'Error scanning prototype for tools:',
+        (err as Error).stack,
+      );
     }
-
     return tools;
+  }
+
+  private buildTool(
+    instance: ProviderInstance,
+    method: ToolMethod,
+    metadata: ToolOptions,
+    authMetadata: ToolAuthorizationMetadata | undefined,
+    options: ToolDiscoveryOptions,
+  ): ToolInterface {
+    const schema = this.resolveSchema(metadata);
+    const isGenerator = isAsyncGeneratorFunction(method);
+
+    const executor = async (input: unknown): Promise<string> => {
+      const auth = await this.checkAuthorization(
+        metadata.name,
+        authMetadata,
+        options,
+      );
+      if (!auth.allowed) {
+        const reason = auth.reason ?? 'unauthorized';
+        this.logger.warn(`Tool ${metadata.name} blocked: ${reason}`);
+        return `Error: unauthorized to call ${metadata.name} (${reason})`;
+      }
+
+      let validatedInput: unknown = input;
+      if (metadata.input) {
+        try {
+          validatedInput = await validateAndTransform(
+            metadata.input,
+            input,
+          );
+        } catch (err) {
+          if (err instanceof ToolInputValidationError) {
+            return `Error: invalid input for ${metadata.name}: ${err.message}`;
+          }
+          throw err;
+        }
+      }
+
+      if (this.isStreamingEnabled(metadata)) {
+        this.toolStreamService?.startToolExecution(
+          metadata.name,
+          this.toStreamPayload(validatedInput),
+        );
+      }
+
+      try {
+        const result = await this.executeWithLimits(
+          metadata,
+          () => this.invokeMethod(instance, method, validatedInput, isGenerator),
+        );
+        if (this.isStreamingEnabled(metadata)) {
+          this.toolStreamService?.completeToolExecution(
+            metadata.name,
+            stringify(result),
+          );
+        }
+        return stringify(result);
+      } catch (err) {
+        const error = err as Error;
+        this.logger.error(
+          `Error executing tool ${metadata.name}:`,
+          error.stack,
+        );
+        if (this.isStreamingEnabled(metadata)) {
+          this.toolStreamService?.errorToolExecution(metadata.name, error);
+        }
+        return `Error: ${error.message}`;
+      }
+    };
+
+    // Cast the generically-parameterised DynamicStructuredTool return to the
+    // project-wide ToolInterface surface. LangChain v1 + zod v4 produce a
+    // narrowly-typed return; we intentionally widen here because callers
+    // treat tools as a homogeneous array.
+    const built = tool(executor, {
+      name: metadata.name,
+      description: metadata.description,
+      schema,
+    });
+    return built as unknown as ToolInterface;
+  }
+
+  private async executeWithLimits(
+    metadata: ToolOptions,
+    run: () => Promise<unknown>,
+  ): Promise<unknown> {
+    const timeoutEnabled = this.toolTimeoutService?.isTimeoutEnabled() ?? false;
+    if (!timeoutEnabled || !this.toolTimeoutService) return run();
+
+    const timeoutConfig = this.toolTimeoutService.getToolTimeoutConfig(metadata);
+    if (!timeoutConfig.enabled) return run();
+
+    try {
+      return await this.toolTimeoutService.executeWithTimeout(
+        run,
+        metadata.name,
+        timeoutConfig.durationMs,
+      );
+    } catch (err) {
+      if (err instanceof ToolTimeoutError) {
+        return `Error: Tool execution timed out after ${timeoutConfig.durationMs}ms`;
+      }
+      throw err;
+    }
+  }
+
+  private async invokeMethod(
+    instance: ProviderInstance,
+    method: ToolMethod,
+    input: unknown,
+    isGenerator: boolean,
+  ): Promise<unknown> {
+    const invoked = method.call(instance, input);
+    if (isGenerator) {
+      return drainGenerator(
+        method.name,
+        invoked as AsyncGenerator<unknown, unknown, unknown>,
+      );
+    }
+    return invoked;
+  }
+
+  /**
+   * Schema passed to LangChain's `tool()`. We derive a zod schema from
+   * the class-validator DTO with **structural-only** shape (no
+   * `minLength` / `min` / `max`). This gives the LLM field names and
+   * types for tool-calling, while our class-validator layer — run inside
+   * the executor — enforces every runtime constraint with rich error
+   * messages.
+   */
+  private resolveSchema(metadata: ToolOptions): z.ZodTypeAny {
+    if (metadata.input) {
+      const json = classValidatorToJsonSchema(metadata.input, {
+        includeConstraints: false,
+      });
+      return jsonSchemaToZod(json);
+    }
+    if (metadata.schema) return metadata.schema;
+    return z.string();
+  }
+
+  private isStreamingEnabled(metadata: ToolOptions): boolean {
+    return Boolean(
+      metadata.streaming && this.toolStreamService?.isStreamingEnabled(),
+    );
+  }
+
+  private toStreamPayload(input: unknown): Record<string, unknown> {
+    if (input && typeof input === 'object' && !Array.isArray(input)) {
+      return input as Record<string, unknown>;
+    }
+    return { value: input };
+  }
+
+  private async checkAuthorization(
+    toolName: string,
+    metadata: ToolAuthorizationMetadata | undefined,
+    options: ToolDiscoveryOptions,
+  ): Promise<AuthorizationCheck> {
+    if (!metadata) return { allowed: true };
+    if (!this.authorizer) {
+      return {
+        allowed: false,
+        reason: `Tool "${toolName}" requires authorization, but no ToolAuthorizer is configured`,
+      };
+    }
+    const decision: ToolAuthorizationDecision = await this.authorizer.authorize({
+      toolName,
+      metadata,
+      runtime: options.authorizationContext,
+    });
+    if (typeof decision === 'boolean') return { allowed: decision };
+    return decision;
+  }
+}
+
+function stringify(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return '';
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
   }
 }

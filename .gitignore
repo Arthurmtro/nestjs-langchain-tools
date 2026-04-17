@@ -67,3 +67,6 @@ temp/
 
 # Turbo
 .turbo
+# Claude Code local state (do not commit)
+.claude/
+debug-deps.ts

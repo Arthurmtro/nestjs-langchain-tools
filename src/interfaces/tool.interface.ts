@@ -1,4 +1,5 @@
-import { z } from 'zod';
+import type { z } from 'zod';
+import type { ClassConstructor } from '../schema/class-validator-json-schema';
 
 /**
  * Callback for streaming tool execution updates
@@ -51,21 +52,31 @@ export interface ToolTimeoutOptions {
 }
 
 /**
- * Configuration for agent tools
+ * Configuration for agent tools.
+ *
+ * Supply **either** a class-validator DTO (`input: MyDto`) — preferred for
+ * Nest apps — or a Zod `schema`. The DTO is converted to JSON Schema for
+ * the LLM and used at runtime to validate and transform the tool input.
  */
 export interface ToolOptions {
   /** Unique name for the tool */
   name: string;
-  
+
   /** Detailed description explaining what the tool does */
   description: string;
-  
-  /** Zod schema for type-safe validation of the tool's input */
+
+  /**
+   * Class-validator DTO describing the tool input.
+   * The tool method receives a typed, validated instance of this class.
+   */
+  input?: ClassConstructor;
+
+  /** Zod schema (alternative to `input`; kept for LangChain interop). */
   schema?: z.ZodType;
-  
+
   /** Whether this tool supports streaming updates */
   streaming?: boolean;
-  
+
   /** Timeout configuration for the tool */
   timeout?: ToolTimeoutOptions | number;
 }

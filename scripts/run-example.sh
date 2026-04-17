@@ -1,26 +1,17 @@
 #!/bin/bash
+# Run the travel-concierge example app.
+# You can either export API keys in the shell, put them in a .env file,
+# or — easier — just start the server and set your key from the UI's
+# Settings panel. The server boots without any key.
 
-# Check if OpenAI API key is set
-if [ -z "$OPENAI_API_KEY" ]; then
-  # Try to load from .env file
-  if [ -f .env ]; then
-    export $(grep -v '^#' .env | xargs)
-    echo "✅ Loaded environment variables from .env file"
-  else
-    echo "❌ ERROR: OPENAI_API_KEY is not set and .env file not found"
-    exit 1
-  fi
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+  echo "✅ Loaded environment variables from .env"
 fi
 
-# Check again to make sure it was loaded
-if [ -z "$OPENAI_API_KEY" ]; then
-  echo "❌ ERROR: OPENAI_API_KEY environment variable is not set!"
-  echo "Please set it in your .env file or export it in your terminal."
-  exit 1
-fi
-
-echo "✅ API key loaded, starting example app..."
-
-# Run the example app
 cd "$(dirname "$0")/.."
+echo "✅ Starting Travel Concierge demo…"
 npx ts-node test/example-app/main.ts
