@@ -1,0 +1,228 @@
+# nestjs-langchain-tools
+
+> Opinionated NestJS × LangChain integration: one decorator per agent (`@ToolsAgent`), one per tool (`@AgentTool`), auto-discovered at boot, streaming by default, observability auto-wired (LangSmith + token/cost), and shipped adapters for Redis / Mongo / Qdrant / pgvector / Pinecone. LangGraph-first — the default coordinator is `GraphCoordinatorService` built on `createReactAgent` (flat) or a `StateGraph` supervisor (multi-agent). Tool inputs are **class-validator DTOs** (no Zod required), converted to JSON Schema for the LLM and validated at runtime.
+
+This file is an LLM-friendly implementation guide for the package. Follow it to produce correct, idiomatic apps on the first try.
+
+## Package identity
+
+- npm: `nestjs-langchain-tools` (current line: v0.3.x)
+- NestJS: `^11` (peer) · `reflect-metadata` is required
+- LangChain: `^1.x` (`@langchain/core`, `@langchain/openai`, `@langchain/langgraph` …)
+- Runtime: Node 18+; `tsconfig` target must support async generators (`es2021`+) if you use streaming tools
+- License: MIT
+
+## When to use this package
+
+Use it when you are building a NestJS backend that needs LLM agents and tools. It replaces hand-rolled `OpenAIService` wrappers, custom decorator-on-`AgentExecutor` layers, and the "LangChain imports leaking across controllers" pattern.
+
+Do NOT use it when:
+- You are outside NestJS (no DI, no `@nestjs/core`). The package is tightly integrated with `DiscoveryService`.
+- You need a bare chat completion with no tools. Call the LangChain model directly — this package targets tool-using agents.
+- You need LangChain features the package does not wrap (specific chains, non-agent workflows). Use LangChain directly for those; import the raw model from `@langchain/openai` etc.
+
+## Golden path (copy this shape)
+
+```ts
+// app.module.ts
+import { Module } from '@nestjs/common';
+import { LangChainToolsModule, ModelProvider } from 'nestjs-langchain-tools';
+import { WeatherAgent } from './weather.agent';
+import { ChatController } from './chat.controller';
+
+@Module({
+  imports: [
+    LangChainToolsModule.forRootAsync({
+      useFactory: () => ({
+        coordinatorProvider: ModelProvider.OPENAI,
+        coordinatorModel: 'gpt-4o',
+        coordinatorUseMemory: true,
+      }),
+    }),
+  ],
+  controllers: [ChatController],
+  providers: [WeatherAgent],
+})
+export class AppModule {}
+```
+
+```ts
+// weather.agent.ts
+import { Injectable } from '@nestjs/common';
+import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { ToolsAgent, AgentTool } from 'nestjs-langchain-tools';
+
+class GetWeatherDto {
+  @IsString() location!: string;
+  @IsEnum(['celsius', 'fahrenheit']) @IsOptional() unit?: 'celsius' | 'fahrenheit';
+}
+
+@Injectable()
+@ToolsAgent({
+  name: 'WeatherAgent',
+  description: 'Answers weather questions',
+  systemPrompt: 'You are a weather expert. Use the tool for every question.',
+})
+export class WeatherAgent {
+  @AgentTool({
+    name: 'get_weather',
+    description: 'Current weather at a location',
+    input: GetWeatherDto,
+  })
+  async getWeather(input: GetWeatherDto): Promise<string> {
+    return `It's 22°${input.unit === 'fahrenheit' ? 'F' : 'C'} in ${input.location}.`;
+  }
+}
+```
+
+```ts
+// chat.controller.ts
+import { Controller } from '@nestjs/common';
+import { LangChainChatController } from 'nestjs-langchain-tools/http';
+import { GraphCoordinatorService } from 'nestjs-langchain-tools';
+
+@Controller('chat')
+export class ChatController extends LangChainChatController {
+  constructor(protected coordinator: GraphCoordinatorService) { super(); }
+}
+```
+
+That yields: `POST /chat` (sync reply), `GET /chat/stream?q=...&sessionId=...` (SSE), `GET /chat/healthz`.
+
+## Hard rules (do not violate)
+
+- **One decorator per layer.** Exactly `@Injectable()` + `@ToolsAgent()` on the class; `@AgentTool()` on methods. Do not hand-instantiate `AgentExecutor` / `createReactAgent` — the module does it from discovered metadata.
+- **Tool inputs are DTOs, not Zod.** Prefer `input: MyDto` (class-validator). Use `schema: z.object(...)` only when interop with an existing Zod schema is unavoidable. Never mix both on the same tool.
+- **DTO fields must carry class-validator decorators** (`@IsString`, `@IsInt`, `@IsEnum`, `@IsOptional`, etc.). Fields without a validator become `unknown` in JSON Schema and the LLM cannot target them.
+- **Agents are Nest providers.** List every agent class in a module's `providers: []`. Without this, `DiscoveryService` cannot find them and the coordinator sees zero tools.
+- **Never call `processMessage*` before bootstrap.** Services resolve agents in `OnApplicationBootstrap`. Inject `GraphCoordinatorService` — don't construct it yourself.
+- **`sessionId` is the memory primary key.** Always pass it on concurrent / multi-user traffic. `"default"` is a last-resort fallback, not a production value.
+- **Streaming tools must be `async function*`** and declared with `streaming: true`. Don't return a Promise from a generator tool — return via the generator's `return` statement (the value becomes the tool-end payload).
+- **`@SupervisorAgent` workers must match `@ToolsAgent({ name })` exactly** (case-sensitive). A typo silently drops the worker.
+- **Module options are validated by class-validator at boot.** A misconfiguration throws `ModuleOptionsValidationError` listing every failing constraint. Read the message — don't silence the error.
+
+## Core API at a glance
+
+Decorators (`nestjs-langchain-tools`):
+- `@ToolsAgent({ name, description, systemPrompt, modelType?, modelName?, temperature?, streaming?, useMemory?, retrieval? })` — class decorator.
+- `@AgentTool({ name, description, input?, schema?, streaming?, timeout? })` — method decorator.
+- `@SupervisorAgent({ name, workers, routingStrategy?, systemPrompt?, taskDelegation?, terminateOn?, finalSynthesis? })` — class decorator; multi-agent orchestration.
+- `@WithRetrieval({ enabled, collectionName, topK?, scoreThreshold?, includeMetadata?, storeRetrievedContext? })` — RAG per-agent.
+- `@Authorize({ roles?, policy?, attributes? })` — deny-by-default via a configured `toolAuthorizer`.
+- `@HumanInterrupt({ prompt?, reason? })` — pause execution pending `coordinator.resume(threadId, decision)`.
+- `@SessionId()` — param decorator; resolves `x-session-id` → `req.user.id` → `req.user.sub` → `"default"`.
+
+Services (inject where needed):
+- `GraphCoordinatorService` — **default**. `processMessage(q, { sessionId })` / `processMessageStream(q, { sessionId })` / `resume(threadId, input)`.
+- `CoordinatorService` — legacy v0.2 coordinator; still registered for migration. Prefer the graph one.
+- `TokenUsageService` — `.totals(sessionId?)`, `.breakdown()`, `.setPricing()`. Auto-wired — no config needed.
+- `VectorStoreService` — `.addDocuments(docs, collection, opts)`, `.similaritySearch(...)`.
+- `ToolStreamService` — manual progress API; only needed if NOT using async-generator tools.
+- `MemoryService` — low-level session store access.
+- `LangChainHealthIndicator` / `LangChainTerminusIndicator` (`/health`) — readiness probes.
+
+Module: `LangChainToolsModule.forRoot(opts)` / `.forRootAsync({ imports, inject, useFactory })`.
+
+Key `LangChainToolsModuleOptions` fields: `coordinatorProvider`, `coordinatorModel`, `coordinatorTemperature` (0..2), `coordinatorPrompt`, `coordinatorUseMemory`, `orchestration` (`'auto' | 'flat' | 'supervisor'`), `supervisorTaskDelegation`, `enableStreaming`, `enableToolStreaming`, `toolTimeout`, `sessionStore`, `toolAuthorizer`, `maxMessagesPerSession`, `sessionTtlMs`, `vectorStore`, `embeddingModel`, `llmFactory`, `coordinatorLlm`, `scope`.
+
+## Streaming events (typed)
+
+`processMessageStream()` returns `Observable<CoordinatorStreamEvent>` with `event.type ∈`:
+- `token` — streamed token `{ content, agent }`
+- `tool-start` — `{ tool, input }`
+- `tool-progress` — from async-generator `yield` or `ToolStreamService`
+- `tool-end` — `{ tool, output }`
+- `agent-handoff` — supervisor routing `{ from, to }`
+- `interrupt` — `@HumanInterrupt` fired `{ threadId, reason }`
+- `complete` — final `{ content, threadId }`
+- `error` — `{ error }`
+
+Always include a `default:` branch in your `switch` — new event types may be added in minor versions.
+
+## Subpath exports
+
+Use these imports (declared in `package.json#exports`, do not deep-import `dist/...`):
+
+- `nestjs-langchain-tools` — core (decorators, module, services, graph).
+- `nestjs-langchain-tools/http` — `LangChainChatController`, `ChatRequestBody`, `ServerSentEvent`.
+- `nestjs-langchain-tools/testing` — `LangChainToolsTestingModule`, `MockChatModel`.
+- `nestjs-langchain-tools/health` — `LangChainHealthIndicator`, `LangChainTerminusIndicator`.
+- `nestjs-langchain-tools/graph` — graph internals / `buildSupervisor` / `mapStreamEvent`.
+- `nestjs-langchain-tools/redis` — `RedisSessionStore`, `createRedisCheckpointSaver` (peer: `ioredis` or `redis`).
+- `nestjs-langchain-tools/mongo` — `MongoSessionStore`, `createMongoCheckpointSaver`, `MongoAtlasVectorStore` (peer: `mongodb`).
+- `nestjs-langchain-tools/qdrant` — `QdrantVectorStore` (peer: `@qdrant/js-client-rest`).
+- `nestjs-langchain-tools/pgvector` — `PgVectorStore` (peer: `pg`, Postgres pgvector extension).
+- `nestjs-langchain-tools/pinecone` — `PineconeVectorStore` (peer: `@pinecone-database/pinecone`).
+
+All adapters take a user-supplied client. **The library never opens or closes connections.**
+
+## Common pitfalls
+
+- **Zero tools discovered.** The agent class is missing from `providers: []`, OR the module is not imported in the root module. Fix the wiring; discovery only scans registered providers.
+- **DTO field ignored by the LLM.** A field without class-validator decorators is omitted from the generated JSON Schema. Add at least one validator, even `@IsOptional()` + a type check.
+- **`ModuleOptionsValidationError` at boot.** A primitive option failed constraint validation (e.g. `coordinatorTemperature: 3` breaks `@Max(2)`). The error lists every issue — fix them verbatim.
+- **Stream never completes.** The caller unsubscribed early, or an uncaught error inside a tool. Always add an `error:` handler on the Observable subscription. SSE clients must also close the `EventSource` on `complete`.
+- **Concurrent users trample each other's memory.** No `sessionId` passed → everything falls into the `"default"` bucket. Use `@SessionId()` in the controller.
+- **Human-in-the-loop hangs.** `resume(threadId, ...)` was never called. The `threadId` arrives in the `interrupt` event — persist it and bind the resume call to the operator's approval UI.
+- **Supervisor silently ignores a worker.** `workers: ['WheatherAgent']` with a typo doesn't match any `@ToolsAgent({ name })`. Worker names are string-matched exact.
+- **LangGraph missing.** `GraphCoordinatorService` / `@SupervisorAgent` / `@HumanInterrupt` require `@langchain/langgraph` installed. The legacy `CoordinatorService` works without it.
+- **Mixed Zod + class-validator on one tool.** Pick one. `input` wins over `schema` if both are set, but ambiguous configs are an anti-pattern.
+- **Importing from `dist/`.** Use the public subpath exports above — deep imports are not part of the public API.
+
+## Observability & cost
+
+- **LangSmith tracing is automatic** when `LANGSMITH_API_KEY` (or `LANGCHAIN_API_KEY`) is set. No code change needed.
+- **Token + cost tracking is always on**. Inject `TokenUsageService`. `.totals(sessionId?)` returns `{ promptTokens, completionTokens, totalTokens, costUsd }`. Override pricing via `.setPricing({ modelId: { input, output } })`.
+- **Retries**: `withRetry(fn, { maxAttempts, initialDelayMs, maxDelayMs, factor })` — exponential backoff with jitter, retries 429 / 5xx / network errors by default.
+- **Timeouts**: `toolTimeout: { enabled: true, durationMs: 30_000 }` globally, or `timeout` on a specific `@AgentTool`.
+
+## Testing
+
+```ts
+import { Test } from '@nestjs/testing';
+import { LangChainToolsTestingModule, MockChatModel } from 'nestjs-langchain-tools/testing';
+
+const mock = new MockChatModel({
+  script: [
+    { toolCalls: [{ name: 'get_weather', args: { location: 'Paris' } }] },
+    'The weather in Paris is sunny.',
+  ],
+});
+const mod = await Test.createTestingModule({
+  imports: [LangChainToolsTestingModule.forRoot({ llm: mock }), MyAgentsModule],
+}).compile();
+```
+
+Prefer `MockChatModel` over mocking the HTTP layer — it drives the same `BaseChatModel` contract the coordinator expects.
+
+## Escape hatches
+
+- `llmFactory: (ctx) => BaseChatModel` — swap the default provider map entirely. Receives agent context (name, provider hint, etc.).
+- `coordinatorLlm: <pre-built model>` — bypass the factory for the coordinator specifically.
+- `orchestration: 'flat' | 'supervisor' | 'auto'` — force a mode when auto-detection guesses wrong.
+- Adapter interfaces (`SessionStore`, `ToolAuthorizer`, `VectorStore`, `EmbeddingsLike`) are public — implement your own backend when the shipped ones don't fit.
+
+## Non-goals
+
+- Not a LangChain re-exporter. Import `@langchain/openai`, `@langchain/core/messages` etc. directly when needed.
+- No built-in auth. `@Authorize` needs a `ToolAuthorizer` that you provide; the library does not know about your JWT / session.
+- No connection pooling. Adapters accept a client you own.
+- No LangChain chains beyond tool-calling agents and retrieval. Compose chains yourself if needed.
+
+## Reference
+
+- [README.md](./README.md): full prose reference with every feature example
+- [MIGRATION-v0.2-to-v0.3.md](./MIGRATION-v0.2-to-v0.3.md): breaking changes, coordinator swap, new event types
+- [docs/RAG.md](./docs/RAG.md): retrieval augmentation deep dive — vector store config, chunking, `@WithRetrieval`, `VectorStoreService`
+- [docs/STREAMING_TOOLS.md](./docs/STREAMING_TOOLS.md): tool streaming protocol, SSE / fetch consumption, `ToolStreamUpdate` shape
+- [src/index.ts](./src/index.ts): authoritative export surface (decorators, services, types, utils)
+- [src/config/module-options.ts](./src/config/module-options.ts): full `LangChainToolsModuleOptions` schema with class-validator constraints
+- [src/interfaces/agent.interface.ts](./src/interfaces/agent.interface.ts): `AgentOptions` union (`ModelProvider`, per-provider option shapes)
+- [src/interfaces/tool.interface.ts](./src/interfaces/tool.interface.ts): `ToolOptions`, `ToolStreamUpdate`, `ToolStreamUpdateType`
+- [src/graph/stream-events.ts](./src/graph/stream-events.ts): `CoordinatorStreamEvent` discriminated union — read this before writing a frontend consumer
+- [src/decorators/](./src/decorators/): source of truth for every decorator shipped
+
+## Optional
+
+- [GitHub repository](https://github.com/arthurmtro/nestjs-langchain-tools): issues, releases, examples under `test/example-app`
+- [npm package](https://www.npmjs.com/package/nestjs-langchain-tools): install and version history
